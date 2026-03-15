@@ -358,15 +358,21 @@ export const useAppStore = create<AppState>((set, get) => {
     connectRelayWithCode: (code) => {
       const relayUrl = get().relayServerUrl;
       set({ relayUrl, relayCode: code, connectionError: null });
+      // Load chat history for this specific room code
+      get().loadChatHistory();
       connectionManager.connectRelay(relayUrl, code);
     },
 
     connectRelay: (relayUrl, code) => {
       set({ relayUrl, relayCode: code, connectionError: null });
+      // Load chat history for this specific room code
+      get().loadChatHistory();
       connectionManager.connectRelay(relayUrl, code);
     },
 
     disconnect: () => {
+      // Save current chat history before clearing
+      get().saveChatHistory();
       connectionManager.disconnect();
       rpcClient.cancelAll();
       stopQueuePolling();
@@ -380,6 +386,7 @@ export const useAppStore = create<AppState>((set, get) => {
         agentWorking: false,
         isStreaming: false,
         messageQueue: [],
+        messages: [],
       });
       Promise.all([
         AsyncStorage.removeItem('mc-session'),
@@ -601,8 +608,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
     saveChatHistory: async () => {
       try {
-        const msgs = get().messages.slice(-200);
-        await AsyncStorage.setItem('mc-chat-history', JSON.stringify(msgs));
+        const { messages, relayCode } = get();
+        const key = relayCode
+          ? `mc-chat-history:${relayCode}`
+          : 'mc-chat-history:direct';
+        const msgs = messages.slice(-200);
+        await AsyncStorage.setItem(key, JSON.stringify(msgs));
       } catch {
         // Ignore
       }
@@ -610,15 +621,23 @@ export const useAppStore = create<AppState>((set, get) => {
 
     loadChatHistory: async () => {
       try {
-        const raw = await AsyncStorage.getItem('mc-chat-history');
+        const { relayCode } = get();
+        const key = relayCode
+          ? `mc-chat-history:${relayCode}`
+          : 'mc-chat-history:direct';
+        const raw = await AsyncStorage.getItem(key);
         if (raw) {
           const messages = JSON.parse(raw) as ChatMessage[];
           if (Array.isArray(messages) && messages.length > 0) {
             set({ messages });
+            return;
           }
         }
+        // No history for this room — start fresh
+        set({ messages: [] });
       } catch {
         // Ignore
+        set({ messages: [] });
       }
     },
   };
