@@ -10,6 +10,7 @@
  *   3. Both derive shared key — all subsequent messages are:
  *      { type: 'e2e.encrypted', n: base64Nonce, c: base64Ciphertext }
  */
+import './crypto-polyfill';      // Must be first — polyfills crypto.getRandomValues for Hermes
 import nacl from 'tweetnacl';
 
 // ── Base64 ↔ Uint8Array helpers (Hermes + Node compatible) ──
