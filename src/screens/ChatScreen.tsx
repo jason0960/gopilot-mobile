@@ -14,12 +14,15 @@ import {
   Platform,
   ActivityIndicator,
   Keyboard,
+  Alert,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore, ChatMessage } from '../store/AppStore';
 import { Colors, Spacing, FontSize, BorderRadius, ThemeColors } from '../theme';
+import InlineDiffPanel from '../components/InlineDiffPanel';
+import BranchModal from '../components/BranchModal';
 
 function formatTime(ts: number): string {
   const d = new Date(ts);
@@ -99,7 +102,40 @@ export default function ChatScreen() {
     sendAgentMessage,
     clearMessages,
     removeFromQueue,
+    runTerminalCommand,
   } = useAppStore();
+
+  const [showDiffs, setShowDiffs] = useState(false);
+  const [showBranches, setShowBranches] = useState(false);
+
+  const handleCommit = useCallback(() => {
+    Alert.prompt(
+      'Commit Changes',
+      'Enter a commit message:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Commit',
+          onPress: async (message?: string) => {
+            if (!message?.trim()) {
+              Alert.alert('Error', 'Commit message cannot be empty.');
+              return;
+            }
+            try {
+              const escaped = message.replace(/"/g, '\\"');
+              const result = await runTerminalCommand(`git add . && git commit -m "${escaped}"`);
+              Alert.alert('Committed', result.output || 'Changes committed successfully.');
+            } catch (err: any) {
+              Alert.alert('Commit Failed', err.message);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'default',
+    );
+  }, [runTerminalCommand]);
 
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
@@ -333,6 +369,47 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* Inline Diff Panel */}
+      <InlineDiffPanel visible={showDiffs} onClose={() => setShowDiffs(false)} />
+
+      {/* Toolbar */}
+      <View style={[styles.toolbar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+        <TouchableOpacity
+          style={[styles.toolbarBtn, showDiffs && { backgroundColor: colors.primary + '22' }]}
+          onPress={() => setShowDiffs(!showDiffs)}
+        >
+          <Ionicons name="git-compare-outline" size={16} color={showDiffs ? colors.primary : colors.textSecondary} />
+          <Text style={[styles.toolbarBtnText, { color: showDiffs ? colors.primary : colors.textSecondary }]}>
+            Diffs
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.toolbarBtn}
+          onPress={handleCommit}
+          disabled={!isAuthenticated}
+        >
+          <Ionicons name="git-commit-outline" size={16} color={isAuthenticated ? colors.textSecondary : colors.textMuted} />
+          <Text style={[styles.toolbarBtnText, { color: isAuthenticated ? colors.textSecondary : colors.textMuted }]}>
+            Commit
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.toolbarBtn}
+          onPress={() => setShowBranches(true)}
+          disabled={!isAuthenticated}
+        >
+          <Ionicons name="git-branch-outline" size={16} color={isAuthenticated ? colors.textSecondary : colors.textMuted} />
+          <Text style={[styles.toolbarBtnText, { color: isAuthenticated ? colors.textSecondary : colors.textMuted }]}>
+            Branch
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Branch Modal */}
+      <BranchModal visible={showBranches} onClose={() => setShowBranches(false)} />
+
       {/* Input Bar */}
       <View style={[styles.inputBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
         <TouchableOpacity
@@ -443,6 +520,26 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   agentBannerText: { fontSize: FontSize.sm, fontWeight: '600' },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderTopWidth: 1,
+    gap: Spacing.sm,
+  },
+  toolbarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  toolbarBtnText: {
+    fontSize: FontSize.sm,
+    fontWeight: '500',
+  },
   queueBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   queueBadge: {
     paddingHorizontal: 6,
