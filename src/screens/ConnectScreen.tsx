@@ -235,7 +235,7 @@ export default function ConnectScreen() {
                 maxLength={8}
                 textAlign="center"
                 autoCorrect={false}
-                autoFocus={true}
+                autoFocus={false}
                 editable={!isConnecting}
               />
 
