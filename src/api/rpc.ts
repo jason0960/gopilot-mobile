@@ -1,9 +1,12 @@
 /**
  * JSON-RPC client for Mobile Copilot.
  * Matches the protocol in @mobile-copilot/protocol.
+ *
+ * Includes E2E encryption: X25519 key exchange + XSalsa20-Poly1305 AEAD.
  */
 
 import { ConnectionManager } from './connection';
+import { E2ECrypto } from './e2e-crypto';
 
 export interface RpcMessage {
   id: string;
@@ -32,6 +35,10 @@ function genId(): string {
 export class RpcClient {
   private pending = new Map<string, PendingRequest>();
   private conn: ConnectionManager;
+  private readonly e2e = new E2ECrypto();
+
+  /** Stored session ID for reconnection auth. Set after successful auth. */
+  public sessionId: string | null = null;
 
   public onEvent: EventHandler = () => {};
   public onStreamChunk: StreamChunkHandler = () => {};
@@ -44,21 +51,30 @@ export class RpcClient {
   /**
    * Handle relay control messages and forward RPC messages.
    * Returns true if the message was a relay control message.
+   *
+   * On relay.joined / host_reconnected: initiates E2E key exchange
+   * (auth is sent AFTER key exchange completes, in handleMessage).
    */
   handleRelayMessage(msg: any): boolean {
     if (msg.type === 'relay.joined') {
       console.log('[Relay] Joined room:', msg.code, 'hostConnected:', msg.hostConnected);
       if (msg.hostConnected) {
-        // Host is ready, send auth
-        console.log('[Relay] Sending auth request to host...');
-        this.sendRaw({ id: genId(), type: 'request', method: 'auth', params: { relay: true } });
+        // Start E2E key exchange before auth
+        this.e2e.reset();
+        const pubkey = this.e2e.generateKeyPair();
+        console.log('[Relay] Starting E2E key exchange...');
+        this.conn.send(JSON.stringify({ type: 'e2e.keyExchange', pubkey }));
       } else {
         console.log('[Relay] Host not connected — waiting for host_reconnected event');
       }
       return true;
     }
     if (msg.type === 'event' && msg.method === 'relay.host_reconnected') {
-      this.sendRaw({ id: genId(), type: 'request', method: 'auth', params: { relay: true } });
+      // Re-initiate key exchange on host reconnect
+      this.e2e.reset();
+      const pubkey = this.e2e.generateKeyPair();
+      console.log('[Relay] Host reconnected — re-initiating E2E key exchange...');
+      this.conn.send(JSON.stringify({ type: 'e2e.keyExchange', pubkey }));
       return true;
     }
     if (msg.type === 'event' && msg.method === 'relay.host_disconnected') {
@@ -73,6 +89,33 @@ export class RpcClient {
       msg = JSON.parse(raw);
     } catch {
       console.error('[RPC] Invalid JSON:', raw);
+      return;
+    }
+
+    // ── E2E key exchange response from host ──
+    if ((msg as any).type === 'e2e.keyExchange' && (msg as any).pubkey) {
+      console.log('[E2E] Received host public key — deriving shared key');
+      this.e2e.deriveSharedKey((msg as any).pubkey);
+      console.log('[E2E] Key exchange complete — sending encrypted auth');
+      // Now send auth (will be encrypted automatically via sendRaw)
+      const authParams: any = { relay: true };
+      if (this.sessionId) {
+        authParams.sessionId = this.sessionId;
+        console.log('[E2E] Auth includes sessionId for missed message recovery');
+      }
+      this.sendRaw({ id: genId(), type: 'request', method: 'auth', params: authParams });
+      return;
+    }
+
+    // ── E2E encrypted message — decrypt and re-process ──
+    if ((msg as any).type === 'e2e.encrypted' && (msg as any).n && (msg as any).c) {
+      try {
+        const decrypted = this.e2e.decrypt(msg as any);
+        console.log('[E2E] Decrypted message:', decrypted.substring(0, 100));
+        this.handleMessage(decrypted);   // re-enter with plaintext
+      } catch (err: any) {
+        console.error('[E2E] Decryption failed:', err.message);
+      }
       return;
     }
 
@@ -166,10 +209,16 @@ export class RpcClient {
   }
 
   /**
-   * Send a raw message object.
+   * Send a raw message object. Encrypted automatically if E2E is established.
    */
   sendRaw(msg: any): void {
-    this.conn.send(JSON.stringify(msg));
+    const json = JSON.stringify(msg);
+    if (this.e2e.isReady) {
+      console.log('[E2E] Encrypting outgoing message');
+      this.conn.send(this.e2e.encrypt(json));
+    } else {
+      this.conn.send(json);
+    }
   }
 
   /**

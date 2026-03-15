@@ -13,9 +13,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore, ChatMessage } from '../store/AppStore';
 import { Colors, Spacing, FontSize, BorderRadius, ThemeColors } from '../theme';
 
@@ -100,6 +102,7 @@ export default function ChatScreen() {
   } = useAppStore();
 
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
   const [inputText, setInputText] = useState('');
 
@@ -191,6 +194,19 @@ export default function ChatScreen() {
       }, 100);
     }
   }, [data.length, streamingContent]);
+
+  // Scroll to bottom when keyboard opens so messages stay visible
+  useEffect(() => {
+    const keyboardEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(keyboardEvent, () => {
+      if (data.length > 0) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 150);
+      }
+    });
+    return () => sub.remove();
+  }, [data.length]);
 
   const isAuthenticated = connectionStatus === 'authenticated';
   const canSend = isAuthenticated && inputText.trim().length > 0;
@@ -318,7 +334,14 @@ export default function ChatScreen() {
       )}
 
       {/* Input Bar */}
-      <View style={[styles.inputBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+      <View style={[styles.inputBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+        <TouchableOpacity
+          style={styles.dismissBtn}
+          onPress={() => Keyboard.dismiss()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="chevron-down-outline" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
         <TextInput
           style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
           placeholder={
@@ -429,10 +452,18 @@ const styles = StyleSheet.create({
   queueBadgeText: { fontSize: FontSize.xs, fontWeight: '600' },
   inputBar: {
     flexDirection: 'row',
-    padding: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xl,
     borderTopWidth: 1,
     alignItems: 'flex-end',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  dismissBtn: {
+    width: 32,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,

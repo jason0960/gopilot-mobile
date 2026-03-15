@@ -189,6 +189,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
       case 'auth.success':
         set({ sessionId: params.sessionId, connectionError: null });
+        rpcClient.sessionId = params.sessionId;
         connectionManager.markAuthenticated();
         state.saveCredentials();
         state.loadWorkspaceInfo();
@@ -588,6 +589,11 @@ export const useAppStore = create<AppState>((set, get) => {
           chatMode: (map['mc-mode'] as ChatMode) || 'agent',
           selectedModel: map['mc-model'] || 'gpt-4o',
         });
+
+        // Sync sessionId to RPC client for relay reconnection auth
+        if (map['mc-session']) {
+          rpcClient.sessionId = map['mc-session'];
+        }
       } catch {
         // Ignore
       }

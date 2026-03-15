@@ -144,8 +144,8 @@ export default function ConnectScreen() {
       {/* Content */}
       <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={100}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
         {/* ── QR Scanner Tab ──────────────────────────── */}
         {mode === 'scan' && (
@@ -214,7 +214,7 @@ export default function ConnectScreen() {
 
         {/* ── Relay Tab ───────────────────────────────── */}
         {mode === 'relay' && (
-          <ScrollView contentContainerStyle={styles.formScroll} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={styles.formScrollCentered} keyboardShouldPersistTaps="handled" bounces={false}>
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Enter Room Code</Text>
               <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
@@ -261,7 +261,7 @@ export default function ConnectScreen() {
 
         {/* ── Direct Tab ──────────────────────────────── */}
         {mode === 'direct' && (
-          <ScrollView contentContainerStyle={styles.formScroll} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={styles.formScrollCentered} keyboardShouldPersistTaps="handled" bounces={false}>
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Direct Connection</Text>
               <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
@@ -428,6 +428,7 @@ const styles = StyleSheet.create({
 
   // Forms
   formScroll: { padding: Spacing.lg },
+  formScrollCentered: { flexGrow: 1, justifyContent: 'center', padding: Spacing.lg },
   card: {
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
