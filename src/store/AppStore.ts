@@ -65,7 +65,7 @@ export interface QueuedMessage {
  * Override at build time: EXPO_PUBLIC_RELAY_URL=wss://relay.example.com
  * Override at runtime: Settings screen.
  */
-const DEFAULT_RELAY_SERVER = process.env.EXPO_PUBLIC_RELAY_URL || 'wss://relay.gopilot.dev';
+const DEFAULT_RELAY_SERVER = process.env.EXPO_PUBLIC_RELAY_URL || 'wss://gopilot-relay.onrender.com';
 
 interface AppState {
   // Connection

@@ -72,7 +72,7 @@ src/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EXPO_PUBLIC_RELAY_URL` | `wss://relay.gopilot.dev` | Relay server URL |
+| `EXPO_PUBLIC_RELAY_URL` | `wss://gopilot-relay.onrender.com` | Relay server URL |
 
 ## License
 
