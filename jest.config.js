@@ -18,4 +18,7 @@ module.exports = {
   },
   collectCoverageFrom: ['src/**/*.ts', 'src/**/*.tsx'],
   coverageDirectory: 'coverage',
+  moduleNameMapper: {
+    '^expo-crypto$': '<rootDir>/__mocks__/expo-crypto.ts',
+  },
 };

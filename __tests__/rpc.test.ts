@@ -205,14 +205,16 @@ describe('RpcClient', () => {
       conn.currentConfig = { mode: 'relay' } as any;
     });
 
-    it('handles relay.joined with hostConnected — sends auth', () => {
+    it('handles relay.joined with hostConnected — sends E2E key exchange', () => {
       receive({ type: 'relay.joined', code: 'ABC123', hostConnected: true });
       const sent = lastSent();
       expect(sent).toMatchObject({
-        type: 'request',
-        method: 'auth',
-        params: { relay: true },
+        type: 'e2e.keyExchange',
       });
+      expect(sent.pubkey).toBeDefined();
+      expect(typeof sent.pubkey).toBe('string');
+      // Base64-encoded 32-byte X25519 public key → 44 chars
+      expect(sent.pubkey.length).toBe(44);
     });
 
     it('handles relay.joined without hostConnected — does NOT send auth', () => {
@@ -221,14 +223,13 @@ describe('RpcClient', () => {
       expect(conn.send).not.toHaveBeenCalled();
     });
 
-    it('handles host_reconnected — sends auth', () => {
+    it('handles host_reconnected — sends E2E key exchange', () => {
       receive({ type: 'event', method: 'relay.host_reconnected' });
       const sent = lastSent();
       expect(sent).toMatchObject({
-        type: 'request',
-        method: 'auth',
-        params: { relay: true },
+        type: 'e2e.keyExchange',
       });
+      expect(sent.pubkey).toBeDefined();
     });
 
     it('handles host_disconnected — consumed silently', () => {
