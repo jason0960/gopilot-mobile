@@ -22,8 +22,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store/AppStore';
 import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
+import type { PubSubPairingInfo } from '../api/pubsub';
 
-type ConnectMode = 'scan' | 'relay' | 'direct';
+type ConnectMode = 'scan' | 'relay' | 'pubsub' | 'direct';
 
 export default function ConnectScreen() {
   const {
@@ -32,6 +33,7 @@ export default function ConnectScreen() {
     theme,
     connectDirect,
     connectRelayWithCode,
+    connectPubSub,
     disconnect,
   } = useAppStore();
 
@@ -41,6 +43,7 @@ export default function ConnectScreen() {
   const [directUrl, setDirectUrl] = useState('');
   const [token, setToken] = useState('');
   const [roomCode, setRoomCode] = useState('');
+  const [pubsubJson, setPubsubJson] = useState('');
   const [scanned, setScanned] = useState(false);
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -52,6 +55,17 @@ export default function ConnectScreen() {
   const handleQrScanned = ({ data }: { data: string }) => {
     if (scanned || isConnecting) return;
     setScanned(true);
+
+    try {
+      // Try parsing as JSON first — Pub/Sub pairing QR
+      const parsed = JSON.parse(data);
+      if (isPubSubPairing(parsed)) {
+        connectPubSub(parsed);
+        return;
+      }
+    } catch {
+      // Not JSON — fall through to URL/room-code parsing
+    }
 
     try {
       // VS Code extension QR: http(s)://host:port/pair?token=XXXX
@@ -95,6 +109,41 @@ export default function ConnectScreen() {
     connectDirect(directUrl.trim(), token.trim());
   };
 
+  /** Type guard for PubSubPairingInfo payloads. */
+  function isPubSubPairing(obj: any): obj is PubSubPairingInfo {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      typeof obj.projectId === 'string' &&
+      typeof obj.topicName === 'string' &&
+      typeof obj.mobileSubscription === 'string' &&
+      typeof obj.userId === 'string' &&
+      typeof obj.accessToken === 'string'
+    );
+  }
+
+  /** Parse and validate a JSON string as Pub/Sub pairing info. */
+  function parsePubSubJson(text: string): PubSubPairingInfo | null {
+    try {
+      const obj = JSON.parse(text);
+      return isPubSubPairing(obj) ? obj : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const handlePubSubConnect = () => {
+    const pairing = parsePubSubJson(pubsubJson);
+    if (!pairing) {
+      Alert.alert(
+        'Invalid Pairing',
+        'Paste the JSON pairing info from VS Code (Mobile Copilot → Copy Pairing JSON).',
+      );
+      return;
+    }
+    connectPubSub(pairing);
+  };
+
   // ─── Camera Permission ────────────────────────────────
 
   useEffect(() => {
@@ -120,6 +169,7 @@ export default function ConnectScreen() {
         {([
           { key: 'scan' as const, icon: 'scan-outline' as const, label: 'Scan' },
           { key: 'relay' as const, icon: 'globe-outline' as const, label: 'Relay' },
+          { key: 'pubsub' as const, icon: 'cloud-outline' as const, label: 'Pub/Sub' },
           { key: 'direct' as const, icon: 'radio-outline' as const, label: 'Direct' },
         ]).map((m) => (
           <TouchableOpacity
@@ -253,6 +303,69 @@ export default function ConnectScreen() {
                   disabled={!roomCode.trim()}
                 >
                   <Text style={styles.connectBtnText}>Join Room</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ── Pub/Sub Tab ─────────────────────────────── */}
+        {mode === 'pubsub' && (
+          <ScrollView contentContainerStyle={styles.formScrollCentered} keyboardShouldPersistTaps="handled" bounces={false}>
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Google Cloud Pub/Sub</Text>
+              <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
+                In VS Code open "Mobile Copilot: Relay Options" → Copy Pairing JSON, then paste below. Or use Scan tab to scan the pairing QR.
+              </Text>
+
+              <TextInput
+                style={[styles.input, styles.pubsubInput, {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.border,
+                }]}
+                placeholder='{"projectId":"...","topicName":"..."}'
+                placeholderTextColor={colors.textMuted}
+                value={pubsubJson}
+                onChangeText={setPubsubJson}
+                autoCapitalize="none"
+                autoCorrect={false}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                editable={!isConnecting}
+              />
+
+              {/* Quick validation indicator */}
+              {pubsubJson.trim().length > 0 && (
+                <View style={styles.validationRow}>
+                  <Ionicons
+                    name={parsePubSubJson(pubsubJson) ? 'checkmark-circle' : 'alert-circle'}
+                    size={16}
+                    color={parsePubSubJson(pubsubJson) ? colors.success : colors.error}
+                  />
+                  <Text style={[styles.validationText, {
+                    color: parsePubSubJson(pubsubJson) ? colors.success : colors.error,
+                  }]}>
+                    {parsePubSubJson(pubsubJson) ? 'Valid pairing info' : 'Invalid JSON — check format'}
+                  </Text>
+                </View>
+              )}
+
+              {isConnecting ? (
+                <TouchableOpacity
+                  style={[styles.connectBtn, { backgroundColor: colors.error || '#e74c3c' }]}
+                  onPress={disconnect}
+                >
+                  <Text style={styles.connectBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.connectBtn, { backgroundColor: colors.primary }]}
+                  onPress={handlePubSubConnect}
+                  disabled={!pubsubJson.trim()}
+                >
+                  <Text style={styles.connectBtnText}>Connect via Pub/Sub</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -447,6 +560,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 4,
     paddingVertical: Spacing.lg,
+  },
+  pubsubInput: {
+    minHeight: 80,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    fontSize: FontSize.sm,
+  },
+  validationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  validationText: {
+    fontSize: FontSize.sm,
   },
   connectBtn: {
     borderRadius: BorderRadius.md,

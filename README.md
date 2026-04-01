@@ -1,5 +1,3 @@
-Hello and welcome to GoPilot
-
 # GoPilot Mobile
 
 React Native (Expo) mobile app for [GoPilot](https://github.com/jason0960/vscode_ide_mobile_plug) — control GitHub Copilot Chat from your phone.

@@ -5,11 +5,15 @@
 
 import { create } from 'zustand';
 import { ConnectionManager, ConnectionStatus } from '../api/connection';
+import { PubSubConnection, PubSubPairingInfo } from '../api/pubsub';
 import { RpcClient } from '../api/rpc';
 import { ThemeMode } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Types ──────────────────────────────────────────────
+
+/** Active transport layer. */
+export type TransportType = 'relay' | 'pubsub';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -75,6 +79,7 @@ interface AppState {
   relayUrl: string | null;
   relayCode: string | null;
   connectionError: string | null;
+  transportType: TransportType;
 
   /** App-level relay server URL (persisted in settings). */
   relayServerUrl: string;
@@ -99,6 +104,7 @@ interface AppState {
 
   // Singleton API instances
   connection: ConnectionManager;
+  pubsub: PubSubConnection;
   rpc: RpcClient;
 
   // Actions
@@ -132,6 +138,8 @@ interface AppState {
   connectRelayWithCode: (code: string) => void;
   /** Connect via relay with explicit URL + code (used by auto-reconnect). */
   connectRelay: (relayUrl: string, code: string) => void;
+  /** Connect via Pub/Sub using pairing info (from QR code or manual entry). */
+  connectPubSub: (pairing: PubSubPairingInfo) => void;
   disconnect: () => void;
   sendChatMessage: (text: string) => Promise<void>;
   sendAgentMessage: (text: string) => Promise<void>;
@@ -156,7 +164,25 @@ interface AppState {
 // ─── Store ──────────────────────────────────────────────
 
 const connectionManager = new ConnectionManager();
+const pubsubConnection = new PubSubConnection();
 const rpcClient = new RpcClient(connectionManager);
+
+// Store original ConnectionManager methods for relay mode restoration
+const _originalSend = connectionManager.send.bind(connectionManager);
+const _originalMarkAuth = connectionManager.markAuthenticated.bind(connectionManager);
+
+/** Restore ConnectionManager to use its native WebSocket transport. */
+function restoreRelayTransport(): void {
+  connectionManager.send = _originalSend;
+  connectionManager.markAuthenticated = _originalMarkAuth;
+}
+
+/** Redirect ConnectionManager send/markAuthenticated to PubSubConnection. */
+function activatePubSubTransport(): void {
+  connectionManager.send = (data: string) => pubsubConnection.send(data);
+  connectionManager.markAuthenticated = () => pubsubConnection.markAuthenticated();
+  pubsubConnection.onMessage = connectionManager.onMessage;
+}
 
 export const useAppStore = create<AppState>((set, get) => {
   // Wire up connection events
@@ -168,6 +194,18 @@ export const useAppStore = create<AppState>((set, get) => {
   };
 
   connectionManager.onError = (error) => {
+    set({ connectionError: error });
+  };
+
+  // Wire up Pub/Sub connection events
+  pubsubConnection.onStatusChange = (status) => {
+    set({ connectionStatus: status });
+    if (status === 'disconnected') {
+      set({ agentWorking: false, isStreaming: false });
+    }
+  };
+
+  pubsubConnection.onError = (error) => {
     set({ connectionError: error });
   };
 
@@ -271,6 +309,7 @@ export const useAppStore = create<AppState>((set, get) => {
     relayUrl: null,
     relayCode: null,
     connectionError: null,
+    transportType: 'relay' as TransportType,
 
     relayServerUrl: DEFAULT_RELAY_SERVER,
 
@@ -289,6 +328,7 @@ export const useAppStore = create<AppState>((set, get) => {
     theme: 'dark',
 
     connection: connectionManager,
+    pubsub: pubsubConnection,
     rpc: rpcClient,
 
     // Simple setters
@@ -351,29 +391,57 @@ export const useAppStore = create<AppState>((set, get) => {
     // ─── Complex Actions ────────────────────────────────
 
     connectDirect: (url, token) => {
-      set({ token, connectionError: null });
+      pubsubConnection.disconnect();
+      restoreRelayTransport();
+      set({ token, connectionError: null, transportType: 'relay' });
       connectionManager.connectDirect(url, token);
     },
 
     connectRelayWithCode: (code) => {
+      pubsubConnection.disconnect();
+      restoreRelayTransport();
       const relayUrl = get().relayServerUrl;
-      set({ relayUrl, relayCode: code, connectionError: null });
+      set({ relayUrl, relayCode: code, connectionError: null, transportType: 'relay' });
       // Load chat history for this specific room code
       get().loadChatHistory();
       connectionManager.connectRelay(relayUrl, code);
     },
 
     connectRelay: (relayUrl, code) => {
-      set({ relayUrl, relayCode: code, connectionError: null });
+      pubsubConnection.disconnect();
+      restoreRelayTransport();
+      set({ relayUrl, relayCode: code, connectionError: null, transportType: 'relay' });
       // Load chat history for this specific room code
       get().loadChatHistory();
       connectionManager.connectRelay(relayUrl, code);
     },
 
+    connectPubSub: (pairing) => {
+      // Disconnect any existing relay connection
+      connectionManager.disconnect();
+
+      // Redirect RPC traffic through Pub/Sub transport
+      activatePubSubTransport();
+
+      set({
+        transportType: 'pubsub',
+        relayUrl: null,
+        relayCode: pairing.userId, // Use userId as the "code" for chat history keying
+        connectionError: null,
+      });
+      get().loadChatHistory();
+      pubsubConnection.connectPubSub(pairing);
+    },
+
     disconnect: () => {
       // Save current chat history before clearing
       get().saveChatHistory();
-      connectionManager.disconnect();
+      const transport = get().transportType;
+      if (transport === 'pubsub') {
+        pubsubConnection.disconnect();
+      } else {
+        connectionManager.disconnect();
+      }
       rpcClient.cancelAll();
       stopQueuePolling();
       set({
