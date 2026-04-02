@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
 } from 'react-native';
 import {
   DrawerContentScrollView,
@@ -40,6 +41,7 @@ export default function CommandCenterDrawer(props: DrawerContentComponentProps) 
     workspace,
     theme,
     relayCode,
+    disconnect,
   } = useAppStore();
 
   const colors = Colors[theme];
@@ -179,8 +181,33 @@ export default function CommandCenterDrawer(props: DrawerContentComponentProps) 
         {renderSection('SYSTEM', 'system')}
       </ScrollView>
 
-      {/* Footer — IDE selector (future-proofed) */}
+      {/* Footer — Leave Room + IDE selector (future-proofed) */}
       <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm }]}>
+        {/* Leave Room button — only shown when connected */}
+        {connectionStatus !== 'disconnected' && (
+          <TouchableOpacity
+            style={[styles.leaveRoomBtn, { borderColor: colors.error }]}
+            onPress={() => {
+              Alert.alert(
+                'Leave Room',
+                'Disconnect from the current session? You can rejoin with a new room code.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Leave',
+                    style: 'destructive',
+                    onPress: () => disconnect(),
+                  },
+                ],
+              );
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={16} color={colors.error} />
+            <Text style={[styles.leaveRoomText, { color: colors.error }]}>Leave Room</Text>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.ideRow}>
           <View style={[styles.ideChip, { backgroundColor: colors.primary + '1A', borderColor: colors.primary }]}>
             <Ionicons name="code-slash" size={14} color={colors.primary} />
@@ -331,6 +358,20 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
+  },
+  leaveRoomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  leaveRoomText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
   },
   ideRow: {
     flexDirection: 'row',

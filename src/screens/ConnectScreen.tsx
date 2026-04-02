@@ -99,9 +99,30 @@ export default function ConnectScreen() {
 
   // ─── Connect Handlers ─────────────────────────────────
 
-  const handleRelayConnect = () => {
-    if (!roomCode.trim() || roomCode.trim().length < 4) return;
-    connectRelayWithCode(roomCode.trim().toUpperCase());
+  const handleRelayConnect = async () => {
+    const code = roomCode.trim().toUpperCase();
+    if (!code || code.length < 4) return;
+
+    // Try pairing exchange first — the code might be for a Pub/Sub session
+    const relayServerUrl = useAppStore.getState().relayServerUrl;
+    const httpUrl = relayServerUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
+
+    try {
+      const res = await fetch(`${httpUrl}/pair/${code}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (isPubSubPairing(data)) {
+          // Pub/Sub pairing found — connect via Pub/Sub
+          connectPubSub(data);
+          return;
+        }
+      }
+    } catch {
+      // Pairing lookup failed (network error, etc.) — fall through to relay
+    }
+
+    // Fall back to WebSocket relay join
+    connectRelayWithCode(code);
   };
 
   const handleDirectConnect = () => {
@@ -268,7 +289,7 @@ export default function ConnectScreen() {
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Enter Room Code</Text>
               <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-                In VS Code run "Mobile Copilot: Connect Cloud Relay" — then type the 6-character code below
+                Open VS Code with Mobile Copilot — the 6-character room code appears automatically. Works with both Relay and Pub/Sub.
               </Text>
 
               <TextInput

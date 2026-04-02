@@ -35,7 +35,7 @@ export interface PubSubPairingInfo {
 /** Direction of message flow. */
 type PubSubDirection = 'mobile_to_ext' | 'ext_to_mobile';
 
-type PubSubMessageType = 'rpc' | 'auth' | 'heartbeat' | 'pairing' | 'disconnect';
+type PubSubMessageType = 'rpc' | 'auth' | 'heartbeat' | 'pairing' | 'disconnect' | 'token_refresh';
 
 /** The Pub/Sub envelope format (matches protocol/pubsub-types). */
 interface PubSubEnvelope {
@@ -337,6 +337,23 @@ export class PubSubConnection {
         case 'heartbeat':
           // Extension heartbeat — reset reconnect counter
           this.reconnectAttempts = 0;
+          break;
+
+        case 'token_refresh':
+          // Extension pushed a fresh access token — update our stored pairing
+          try {
+            const refreshData = JSON.parse(envelope.payload);
+            if (this._pairing && refreshData.accessToken) {
+              this._pairing = {
+                ...this._pairing,
+                accessToken: refreshData.accessToken,
+                tokenExpiry: refreshData.tokenExpiry ?? this._pairing.tokenExpiry,
+              };
+              console.log('[PubSub] Access token refreshed by extension');
+            }
+          } catch (err: any) {
+            console.error('[PubSub] Failed to parse token_refresh:', err.message);
+          }
           break;
 
         case 'disconnect':

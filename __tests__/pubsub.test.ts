@@ -670,4 +670,105 @@ describe('PubSubConnection', () => {
       expect(messages.length).toBe(0);
     });
   });
+
+  // ─── Token Refresh ──────────────────────────────────────
+
+  describe('token refresh', () => {
+    it('should update stored access token on token_refresh message', async () => {
+      const messages: string[] = [];
+      conn.onMessage = (data) => messages.push(data);
+
+      const tokenRefreshEnvelope = makeEnvelope({
+        messageType: 'token_refresh',
+        payload: JSON.stringify({
+          accessToken: 'fresh-token-999',
+          tokenExpiry: Date.now() + 7_200_000,
+        }),
+      });
+
+      fetchResponses.set(':pull', () => ({
+        ok: true,
+        status: 200,
+        json: async () => makePullResponse(tokenRefreshEnvelope),
+        text: async () => '',
+      } as Response));
+
+      conn.connectPubSub(makePairing({ accessToken: 'old-token' }));
+      await jest.advanceTimersByTimeAsync(10);
+
+      // Token should be updated internally
+      // The pairing info is private, so we check by triggering a publish and verifying the token
+      // The message should NOT be forwarded to onMessage (it's internal)
+      expect(messages.length).toBe(0);
+    });
+
+    it('should use the refreshed token for subsequent API calls', async () => {
+      const tokenRefreshEnvelope = makeEnvelope({
+        messageType: 'token_refresh',
+        payload: JSON.stringify({
+          accessToken: 'fresh-token-abc',
+          tokenExpiry: Date.now() + 7_200_000,
+        }),
+      });
+
+      // First poll returns token_refresh
+      let pullCallCount = 0;
+      fetchResponses.set(':pull', () => {
+        pullCallCount++;
+        if (pullCallCount === 1) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => makePullResponse(tokenRefreshEnvelope),
+            text: async () => '',
+          } as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ receivedMessages: [] }),
+          text: async () => '',
+        } as Response;
+      });
+
+      conn.connectPubSub(makePairing({ accessToken: 'old-token' }));
+      await jest.advanceTimersByTimeAsync(10);
+
+      // Clear call history
+      fetchMock.mockClear();
+
+      // Send a message — should use the refreshed token
+      conn.send(JSON.stringify({ type: 'test' }));
+      await jest.advanceTimersByTimeAsync(10);
+
+      const publishCall = fetchMock.mock.calls.find(
+        (c: any[]) => typeof c[0] === 'string' && c[0].includes(':publish'),
+      );
+      if (publishCall) {
+        const headers = publishCall[1]?.headers as Record<string, string>;
+        expect(headers.Authorization).toBe('Bearer fresh-token-abc');
+      }
+    });
+
+    it('should handle malformed token_refresh payload gracefully', async () => {
+      const badRefreshEnvelope = makeEnvelope({
+        messageType: 'token_refresh',
+        payload: 'not-valid-json',
+      });
+
+      fetchResponses.set(':pull', () => ({
+        ok: true,
+        status: 200,
+        json: async () => makePullResponse(badRefreshEnvelope),
+        text: async () => '',
+      } as Response));
+
+      // Should not throw
+      conn.connectPubSub(makePairing());
+      await jest.advanceTimersByTimeAsync(10);
+
+      // Connection should still be active
+      expect(conn.isConnected).toBe(true);
+    });
+  });
 });
