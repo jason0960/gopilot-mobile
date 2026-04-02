@@ -35,7 +35,7 @@ export interface PubSubPairingInfo {
 /** Direction of message flow. */
 type PubSubDirection = 'mobile_to_ext' | 'ext_to_mobile';
 
-type PubSubMessageType = 'rpc' | 'auth' | 'heartbeat' | 'pairing' | 'disconnect' | 'token_refresh';
+type PubSubMessageType = 'rpc' | 'auth' | 'heartbeat' | 'pairing' | 'disconnect' | 'connect' | 'token_refresh' | 'event';
 
 /** The Pub/Sub envelope format (matches protocol/pubsub-types). */
 interface PubSubEnvelope {
@@ -75,6 +75,58 @@ function generateId(): string {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+// ─── Avro JSON Encoding Helpers ─────────────────────────
+
+/**
+ * Wrap a PubSubEnvelope for Avro JSON encoding.
+ *
+ * The GoPilotSchemaV2 Avro schema declares `correlationId` and `payload` as
+ * union types `["null", "string"]`.  Avro JSON encoding represents these as
+ * either `null` or `{"string": "value"}`.
+ */
+function toAvroJson(envelope: PubSubEnvelope): Record<string, unknown> {
+  return {
+    id: envelope.id,
+    correlationId: envelope.correlationId
+      ? { string: envelope.correlationId }
+      : null,
+    userId: envelope.userId,
+    direction: envelope.direction,
+    messageType: envelope.messageType,
+    payload: envelope.payload
+      ? { string: envelope.payload }
+      : null,
+    timestamp: envelope.timestamp,
+  };
+}
+
+/**
+ * Unwrap a JSON-parsed Avro record back into a normal PubSubEnvelope.
+ *
+ * Handles both Avro union shapes (`{"string":"val"}` / `null`) *and*
+ * the plain-string shape so that old messages still decode correctly.
+ */
+function fromAvroJson(raw: Record<string, unknown>): PubSubEnvelope {
+  const unwrap = (v: unknown): string | undefined => {
+    if (v === null || v === undefined) return undefined;
+    if (typeof v === 'string') return v;
+    if (typeof v === 'object' && v !== null && 'string' in v) {
+      return (v as { string: string }).string;
+    }
+    return undefined;
+  };
+
+  return {
+    id: raw.id as string,
+    correlationId: unwrap(raw.correlationId),
+    userId: raw.userId as string,
+    direction: raw.direction as PubSubDirection,
+    messageType: raw.messageType as PubSubMessageType,
+    payload: unwrap(raw.payload) ?? '',
+    timestamp: raw.timestamp as number,
+  };
 }
 
 // ─── PubSubConnection ───────────────────────────────────
@@ -214,7 +266,7 @@ export class PubSubConnection {
     const body = {
       messages: [
         {
-          data: btoa(JSON.stringify(envelope)),
+          data: btoa(JSON.stringify(toAvroJson(envelope))),
           attributes: {
             direction: envelope.direction,
             messageType: envelope.messageType,
@@ -305,7 +357,7 @@ export class PubSubConnection {
       if (!rawData) return;
 
       const decoded = atob(rawData);
-      const envelope: PubSubEnvelope = JSON.parse(decoded);
+      const envelope: PubSubEnvelope = fromAvroJson(JSON.parse(decoded));
 
       // Deduplication
       if (this.seenIds.has(envelope.id)) return;

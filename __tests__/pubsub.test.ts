@@ -204,7 +204,11 @@ describe('PubSubConnection', () => {
       const envelope = JSON.parse(atob(body.messages[0].data));
       expect(envelope.messageType).toBe('rpc');
       expect(envelope.direction).toBe('mobile_to_ext');
-      expect(JSON.parse(envelope.payload).method).toBe('test');
+      // Avro union encoding: payload is {"string": "..."} not a bare string
+      const payloadStr = typeof envelope.payload === 'object' && envelope.payload?.string
+        ? envelope.payload.string
+        : envelope.payload;
+      expect(JSON.parse(payloadStr).method).toBe('test');
     });
 
     it('does nothing when not connected', async () => {
