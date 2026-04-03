@@ -401,7 +401,7 @@ export class PubSubConnection {
                 accessToken: refreshData.accessToken,
                 tokenExpiry: refreshData.tokenExpiry ?? this._pairing.tokenExpiry,
               };
-              console.log('[PubSub] Access token refreshed by extension');
+              if (__DEV__) console.log('[PubSub] Access token refreshed by extension');
             }
           } catch (err: any) {
             console.error('[PubSub] Failed to parse token_refresh:', err.message);

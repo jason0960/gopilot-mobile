@@ -18,6 +18,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAppStore } from './src/store/AppStore';
 import { Colors } from './src/theme';
 import CommandCenterDrawer from './src/components/CommandCenterDrawer';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 import ConnectScreen from './src/screens/ConnectScreen';
 import ChatScreen from './src/screens/ChatScreen';
@@ -87,12 +88,14 @@ export default function App() {
   // Show connect screen if not authenticated
   if (!isAuthenticated) {
     return (
-      <GestureHandlerRootView style={styles.flex}>
-        <SafeAreaProvider>
-          <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-          <ConnectScreen />
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
+      <ErrorBoundary>
+        <GestureHandlerRootView style={styles.flex}>
+          <SafeAreaProvider>
+            <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+            <ConnectScreen />
+          </SafeAreaProvider>
+        </GestureHandlerRootView>
+      </ErrorBoundary>
     );
   }
 
@@ -110,10 +113,11 @@ export default function App() {
   };
 
   return (
-    <GestureHandlerRootView style={styles.flex}>
-      <SafeAreaProvider>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-        <NavigationContainer theme={navTheme}>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={styles.flex}>
+        <SafeAreaProvider>
+          <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+          <NavigationContainer theme={navTheme}>
           <Drawer.Navigator
             drawerContent={(props) => <CommandCenterDrawer {...props} />}
             screenOptions={({ navigation }) => ({
@@ -146,6 +150,7 @@ export default function App() {
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
 

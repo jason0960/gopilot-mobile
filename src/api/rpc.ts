@@ -57,15 +57,15 @@ export class RpcClient {
    */
   handleRelayMessage(msg: any): boolean {
     if (msg.type === 'relay.joined') {
-      console.log('[Relay] Joined room:', msg.code, 'hostConnected:', msg.hostConnected);
+      if (__DEV__) console.log('[Relay] Joined room:', msg.code, 'hostConnected:', msg.hostConnected);
       if (msg.hostConnected) {
         // Start E2E key exchange before auth
         this.e2e.reset();
         const pubkey = this.e2e.generateKeyPair();
-        console.log('[Relay] Starting E2E key exchange...');
+        if (__DEV__) console.log('[Relay] Starting E2E key exchange...');
         this.conn.send(JSON.stringify({ type: 'e2e.keyExchange', pubkey }));
       } else {
-        console.log('[Relay] Host not connected — waiting for host_reconnected event');
+        if (__DEV__) console.log('[Relay] Host not connected — waiting for host_reconnected event');
       }
       return true;
     }
@@ -73,7 +73,7 @@ export class RpcClient {
       // Re-initiate key exchange on host reconnect
       this.e2e.reset();
       const pubkey = this.e2e.generateKeyPair();
-      console.log('[Relay] Host reconnected — re-initiating E2E key exchange...');
+      if (__DEV__) console.log('[Relay] Host reconnected — re-initiating E2E key exchange...');
       this.conn.send(JSON.stringify({ type: 'e2e.keyExchange', pubkey }));
       return true;
     }
@@ -88,20 +88,20 @@ export class RpcClient {
     try {
       msg = JSON.parse(raw);
     } catch {
-      console.error('[RPC] Invalid JSON:', raw);
+      if (__DEV__) console.error('[RPC] Invalid JSON:', raw);
       return;
     }
 
     // ── E2E key exchange response from host ──
     if ((msg as any).type === 'e2e.keyExchange' && (msg as any).pubkey) {
-      console.log('[E2E] Received host public key — deriving shared key');
+      if (__DEV__) console.log('[E2E] Received host public key — deriving shared key');
       this.e2e.deriveSharedKey((msg as any).pubkey);
-      console.log('[E2E] Key exchange complete — sending encrypted auth');
+      if (__DEV__) console.log('[E2E] Key exchange complete — sending encrypted auth');
       // Now send auth (will be encrypted automatically via sendRaw)
       const authParams: any = { relay: true };
       if (this.sessionId) {
         authParams.sessionId = this.sessionId;
-        console.log('[E2E] Auth includes sessionId for missed message recovery');
+        if (__DEV__) console.log('[E2E] Auth includes sessionId for missed message recovery');
       }
       this.sendRaw({ id: genId(), type: 'request', method: 'auth', params: authParams });
       return;
@@ -111,7 +111,7 @@ export class RpcClient {
     if ((msg as any).type === 'e2e.encrypted' && (msg as any).n && (msg as any).c) {
       try {
         const decrypted = this.e2e.decrypt(msg as any);
-        console.log('[E2E] Decrypted message:', decrypted.substring(0, 100));
+        // SECURITY: never log decrypted content — even truncated
         this.handleMessage(decrypted);   // re-enter with plaintext
       } catch (err: any) {
         console.error('[E2E] Decryption failed:', err.message);
@@ -126,7 +126,7 @@ export class RpcClient {
 
     // Events
     if (msg.type === 'event') {
-      console.log('[RPC] Event received:', msg.method, msg.params ? JSON.stringify(msg.params).substring(0, 100) : '');
+      if (__DEV__) console.log('[RPC] Event received:', msg.method, msg.params ? JSON.stringify(msg.params).substring(0, 100) : '');
       this.onEvent(msg.method!, msg.params);
       return;
     }
@@ -214,7 +214,7 @@ export class RpcClient {
   sendRaw(msg: any): void {
     const json = JSON.stringify(msg);
     if (this.e2e.isReady) {
-      console.log('[E2E] Encrypting outgoing message');
+      if (__DEV__) console.log('[E2E] Encrypting outgoing message');
       this.conn.send(this.e2e.encrypt(json));
     } else {
       this.conn.send(json);

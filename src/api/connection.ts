@@ -117,7 +117,7 @@ export class ConnectionManager {
     }
 
     this.setStatus('connecting');
-    console.log('[WS] Connecting to', url);
+    if (__DEV__) console.log('[WS] Connecting to', url);
 
     try {
       this.ws = new WebSocket(url);
@@ -128,7 +128,7 @@ export class ConnectionManager {
     }
 
     this.ws.onopen = () => {
-      console.log('[WS] Connected');
+      if (__DEV__) console.log('[WS] Connected');
       this.setStatus('connected');
       this.startHeartbeat();
     };
@@ -138,7 +138,7 @@ export class ConnectionManager {
     };
 
     this.ws.onclose = (event: CloseEvent) => {
-      console.log('[WS] Closed:', event.code, event.reason);
+      if (__DEV__) console.log('[WS] Closed:', event.code, event.reason);
       this.stopHeartbeat();
 
       // Fatal close codes — don't reconnect
@@ -168,7 +168,7 @@ export class ConnectionManager {
     };
 
     this.ws.onerror = () => {
-      console.log('[WS] Error');
+      if (__DEV__) console.log('[WS] Error');
     };
   }
 
