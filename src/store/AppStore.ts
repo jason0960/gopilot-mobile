@@ -642,8 +642,8 @@ export const useAppStore = create<AppState>((set, get) => {
         if (relayUrl) pairs.push(['mc-relay-url', relayUrl]);
         if (relayCode) pairs.push(['mc-relay-code', relayCode]);
         await Promise.all(pairs.map(([k, v]) => AsyncStorage.setItem(k, v)));
-      } catch {
-        // Ignore
+      } catch (e) {
+        if (__DEV__) console.warn('[AppStore] saveCredentials failed:', e);
       }
     },
 
@@ -669,8 +669,8 @@ export const useAppStore = create<AppState>((set, get) => {
         if (map['mc-session']) {
           rpcClient.sessionId = map['mc-session'];
         }
-      } catch {
-        // Ignore
+      } catch (e) {
+        if (__DEV__) console.warn('[AppStore] loadCredentials failed:', e);
       }
     },
 
@@ -682,8 +682,8 @@ export const useAppStore = create<AppState>((set, get) => {
           : 'mc-chat-history:direct';
         const msgs = messages.slice(-200);
         await AsyncStorage.setItem(key, JSON.stringify(msgs));
-      } catch {
-        // Ignore
+      } catch (e) {
+        if (__DEV__) console.warn('[AppStore] saveChatHistory failed:', e);
       }
     },
 
@@ -703,8 +703,8 @@ export const useAppStore = create<AppState>((set, get) => {
         }
         // No history for this room — start fresh
         set({ messages: [] });
-      } catch {
-        // Ignore
+      } catch (e) {
+        if (__DEV__) console.warn('[AppStore] loadChatHistory failed:', e);
         set({ messages: [] });
       }
     },

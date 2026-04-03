@@ -41,6 +41,7 @@ export default function App() {
     loadChatHistory,
   } = useAppStore();
 
+  const workspaceName = useAppStore((s) => s.workspace?.name);
   const colors = Colors[theme];
   const [loading, setLoading] = useState(true);
 
@@ -137,7 +138,7 @@ export default function App() {
               name="Chat"
               component={ChatScreen}
               options={{
-                headerTitle: useAppStore.getState().workspace?.name || 'Copilot Chat',
+                headerTitle: workspaceName || 'Copilot Chat',
               }}
             />
             <Drawer.Screen name="Files" component={FilesScreen} />
