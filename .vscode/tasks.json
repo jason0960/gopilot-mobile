@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Metro Fresh Start",
+			"type": "shell",
+			"command": "cd /home/jason/repos/gopilot-mobile && npx expo start --clear --port 8081",
+			"isBackground": true
+		}
+	]
+}

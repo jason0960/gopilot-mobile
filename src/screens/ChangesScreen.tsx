@@ -56,15 +56,24 @@ export default function ChangesScreen() {
 
   const isAuthenticated = connectionStatus === 'authenticated';
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const refresh = useCallback(async () => {
     if (!isAuthenticated) return;
     setLoading(true);
+    setErrorMsg(null);
     try {
       const result = await loadChanges();
-      setData(result);
-      setRejectedHunks(new Map()); // reset selections on refresh
-    } catch {
+      if (!result || !result.files) {
+        setData(null);
+        setErrorMsg('No response from extension — is it running?');
+      } else {
+        setData(result);
+        setRejectedHunks(new Map()); // reset selections on refresh
+      }
+    } catch (err: any) {
       setData(null);
+      setErrorMsg(err?.message || 'Failed to load changes');
     }
     setLoading(false);
   }, [isAuthenticated, loadChanges]);
@@ -384,7 +393,7 @@ export default function ChangesScreen() {
                 )}
               </>
             ) : (
-              <Text style={[styles.noDiff, { color: colors.textMuted }]}>No diff available</Text>
+              <Text style={[styles.noDiff, { color: colors.textMuted }]}>No diff available — tap refresh to retry</Text>
             )}
           </View>
         )}
@@ -430,6 +439,19 @@ export default function ChangesScreen() {
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
+      ) : errorMsg ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="git-compare-outline" size={48} color={colors.warning} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            Could not load changes
+          </Text>
+          <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+            {errorMsg}
+          </Text>
+          <TouchableOpacity onPress={refresh} style={{ marginTop: 16 }}>
+            <Text style={{ color: colors.primary, fontSize: 16 }}>Tap to retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : !data || data.files.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="checkmark-circle-outline" size={48} color={colors.success} />
@@ -581,5 +603,6 @@ const styles = StyleSheet.create({
   },
   noDiff: { fontSize: FontSize.sm, textAlign: 'center', padding: Spacing.md },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { fontSize: FontSize.md, marginTop: Spacing.lg },
+  emptyTitle: { fontSize: FontSize.md, fontWeight: '600', marginTop: Spacing.md },
+  emptyText: { fontSize: FontSize.sm, marginTop: Spacing.sm, textAlign: 'center', paddingHorizontal: Spacing.xl },
 });

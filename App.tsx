@@ -139,8 +139,8 @@ export default function App() {
             <Drawer.Screen name="Files" component={FilesScreen} />
             <Drawer.Screen name="Terminal" component={TerminalScreen} />
             <Drawer.Screen name="Commands" component={QuickCommandsScreen} options={{ headerTitle: 'Quick Commands' }} />
-            <Drawer.Screen name="Diagnostics" component={DiagnosticsScreen} />
-            <Drawer.Screen name="Changes" component={ChangesScreen} />
+            <Drawer.Screen name="Changes" component={ChangesScreen} options={{ headerTitle: 'Source Control' }} />
+            <Drawer.Screen name="Diagnostics" component={DiagnosticsScreen} options={{ headerTitle: 'Problems' }} />
             <Drawer.Screen name="Settings" component={SettingsScreen} />
           </Drawer.Navigator>
         </NavigationContainer>

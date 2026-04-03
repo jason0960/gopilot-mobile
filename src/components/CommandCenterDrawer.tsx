@@ -57,7 +57,7 @@ export default function CommandCenterDrawer(props: DrawerContentComponentProps) 
     { key: 'Terminal', label: 'Terminal', icon: 'terminal-outline', section: 'workspace' },
     { key: 'Commands', label: 'Quick Commands', icon: 'flash-outline', section: 'workspace' },
     { key: 'Changes', label: 'Source Control', icon: 'git-compare-outline', section: 'workspace' },
-    { key: 'Diagnostics', label: 'Problems', icon: 'alert-circle-outline', badge: diagBadge, section: 'workspace' },
+    { key: 'Diagnostics', label: 'Problems', icon: 'alert-circle-outline', badge: diagBadge, section: 'system' },
     // System
     { key: 'Settings', label: 'Settings', icon: 'settings-outline', section: 'system' },
   ];

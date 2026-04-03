@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "GoPilot",
+    "name": "AgentDeck Command Center",
     "slug": "gopilot",
     "version": "0.2.0",
     "orientation": "portrait",
@@ -18,7 +18,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Camera is used to scan QR codes for pairing with VS Code",
-        "NSLocalNetworkUsageDescription": "Local network access is used to connect to VS Code on your computer"
+        "NSLocalNetworkUsageDescription": "Local network access is used to connect to VS Code on your computer",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -27,13 +28,16 @@
         "backgroundColor": "#1e1e1e"
       },
       "package": "com.mobilecopilot.app",
-      "permissions": ["CAMERA"]
+      "permissions": [
+        "CAMERA"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
     },
     "scheme": "mobile-copilot",
-    "owner": "jason0960",
+    "owner": "jason096",
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "5b3d2b57-ed1a-41c1-90e2-27e00e5c40f1"
       }
     },
     "runtimeVersion": {
