@@ -6,9 +6,9 @@
 
 // Must be imported before any React Navigation code to ensure gesture handler is initialized
 import 'react-native-gesture-handler';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, NavigationContainerRef } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
@@ -39,11 +39,13 @@ export default function App() {
     theme,
     loadCredentials,
     loadChatHistory,
+    setActiveScreen,
   } = useAppStore();
 
   const workspaceName = useAppStore((s) => s.workspace?.name);
   const colors = Colors[theme];
   const [loading, setLoading] = useState(true);
+  const navigationRef = useRef<NavigationContainerRef<any>>(null);
 
   // Load persisted state on startup
   useEffect(() => {
@@ -118,7 +120,16 @@ export default function App() {
       <GestureHandlerRootView style={styles.flex}>
         <SafeAreaProvider>
           <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-          <NavigationContainer theme={navTheme}>
+          <NavigationContainer
+            ref={navigationRef}
+            theme={navTheme}
+            onStateChange={() => {
+              const currentRoute = navigationRef.current?.getCurrentRoute()?.name;
+              if (currentRoute) {
+                setActiveScreen(currentRoute);
+              }
+            }}
+          >
           <Drawer.Navigator
             drawerContent={(props) => <CommandCenterDrawer {...props} />}
             screenOptions={({ navigation }) => ({

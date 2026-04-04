@@ -10,6 +10,7 @@ import { PubSubConnection, PubSubPairingInfo } from '../api/pubsub';
 import { RpcClient } from '../api/rpc';
 import { ThemeMode } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NotificationService } from '../api/notifications';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -100,6 +101,10 @@ interface AppState {
   workspace: WorkspaceInfo | null;
   diagnosticsSummary: { errors: number; warnings: number };
 
+  // Notifications
+  unreadCount: number;
+  activeScreen: string;
+
   // Settings
   theme: ThemeMode;
 
@@ -132,6 +137,10 @@ interface AppState {
 
   setTheme: (theme: ThemeMode) => void;
   setRelayServerUrl: (url: string) => void;
+
+  incrementUnread: () => void;
+  clearUnread: () => void;
+  setActiveScreen: (screen: string) => void;
 
   // Complex actions
   connectDirect: (url: string, token: string) => void;
@@ -167,6 +176,7 @@ interface AppState {
 const connectionManager = new ConnectionManager();
 const pubsubConnection = new PubSubConnection();
 const rpcClient = new RpcClient(connectionManager);
+const notificationService = new NotificationService();
 
 // Store original ConnectionManager methods for relay mode restoration
 const _originalSend = connectionManager.send.bind(connectionManager);
@@ -232,6 +242,8 @@ export const useAppStore = create<AppState>((set, get) => {
         connectionManager.markAuthenticated();
         state.saveCredentials();
         state.loadWorkspaceInfo();
+        // Initialize notifications after successful auth
+        notificationService.initialize().catch(() => {});
         break;
 
       case 'auth.failed':
@@ -244,14 +256,13 @@ export const useAppStore = create<AppState>((set, get) => {
 
       case 'session.missedResponse':
         if (params.content) {
-          set((s) => ({
-            messages: [...s.messages, {
-              role: 'assistant' as const,
-              content: params.content,
-              timestamp: params.timestamp || Date.now(),
-            }],
-          }));
-          get().saveChatHistory();
+          const missedMsg: ChatMessage = {
+            role: 'assistant' as const,
+            content: params.content,
+            timestamp: params.timestamp || Date.now(),
+          };
+          // Use addMessage to trigger unread tracking + notifications
+          get().addMessage(missedMsg);
         }
         break;
 
@@ -348,6 +359,9 @@ export const useAppStore = create<AppState>((set, get) => {
     workspace: null,
     diagnosticsSummary: { errors: 0, warnings: 0 },
 
+    unreadCount: 0,
+    activeScreen: 'Chat',
+
     theme: 'dark',
 
     connection: connectionManager,
@@ -364,6 +378,15 @@ export const useAppStore = create<AppState>((set, get) => {
     addMessage: (msg) => {
       set((s) => ({ messages: [...s.messages, msg] }));
       get().saveChatHistory();
+      // Track unread assistant messages when not on Chat screen
+      if (msg.role === 'assistant') {
+        const state = get();
+        if (state.activeScreen !== 'Chat') {
+          const newCount = state.unreadCount + 1;
+          set({ unreadCount: newCount });
+          notificationService.showMessageNotification(msg.content, newCount);
+        }
+      }
     },
     clearMessages: () => {
       set({ messages: [] });
@@ -409,6 +432,24 @@ export const useAppStore = create<AppState>((set, get) => {
     setRelayServerUrl: (url) => {
       set({ relayServerUrl: url });
       AsyncStorage.setItem('mc-relay-server', url).catch(() => {});
+    },
+
+    incrementUnread: () => {
+      set((s) => ({ unreadCount: s.unreadCount + 1 }));
+    },
+
+    clearUnread: () => {
+      set({ unreadCount: 0 });
+      notificationService.clearBadge();
+    },
+
+    setActiveScreen: (screen) => {
+      set({ activeScreen: screen });
+      // Clear unread when navigating to Chat
+      if (screen === 'Chat') {
+        set({ unreadCount: 0 });
+        notificationService.clearBadge();
+      }
     },
 
     // ─── Complex Actions ────────────────────────────────

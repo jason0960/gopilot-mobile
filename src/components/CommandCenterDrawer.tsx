@@ -41,7 +41,9 @@ export default function CommandCenterDrawer(props: DrawerContentComponentProps) 
     workspace,
     theme,
     relayCode,
+    unreadCount,
     disconnect,
+    setActiveScreen,
   } = useAppStore();
 
   const colors = Colors[theme];
@@ -51,7 +53,7 @@ export default function CommandCenterDrawer(props: DrawerContentComponentProps) 
 
   const navItems: NavItem[] = [
     // Main
-    { key: 'Chat', label: 'Copilot Chat', icon: 'chatbubble-outline', section: 'main' },
+    { key: 'Chat', label: 'Copilot Chat', icon: 'chatbubble-outline', badge: unreadCount, section: 'main' },
     // Workspace
     { key: 'Files', label: 'File Explorer', icon: 'folder-outline', section: 'workspace' },
     { key: 'Terminal', label: 'Terminal', icon: 'terminal-outline', section: 'workspace' },
@@ -71,7 +73,10 @@ export default function CommandCenterDrawer(props: DrawerContentComponentProps) 
           styles.navItem,
           isActive && { backgroundColor: colors.primary + '1A' },
         ]}
-        onPress={() => props.navigation.navigate(item.key)}
+        onPress={() => {
+          props.navigation.navigate(item.key);
+          setActiveScreen(item.key);
+        }}
         activeOpacity={0.7}
       >
         <View style={styles.navItemLeft}>

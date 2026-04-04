@@ -20,6 +20,7 @@ module.exports = {
   coverageDirectory: 'coverage',
   moduleNameMapper: {
     '^expo-crypto$': '<rootDir>/__mocks__/expo-crypto.ts',
+    '^expo-notifications$': '<rootDir>/__mocks__/expo-notifications.ts',
   },
   globals: {
     __DEV__: true,
