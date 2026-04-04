@@ -347,27 +347,29 @@ describe('PubSubConnection', () => {
       expect(conn.status).toBe('disconnected');
     });
 
-    it('disconnects on 401 poll error', async () => {
+    it('disconnects on 401 poll error after retries', async () => {
       mockFetchResponse(':pull', { error: 'Unauthorized' }, 401);
 
       const errors: string[] = [];
       conn.onError = (e) => errors.push(e);
 
       conn.connectPubSub(makePairing());
-      await jest.advanceTimersByTimeAsync(10);
+      // Need enough time for MAX_POLL_RETRIES (3) consecutive failures
+      await jest.advanceTimersByTimeAsync(10_000);
 
       expect(errors.some((e) => e.includes('authentication expired'))).toBe(true);
       expect(conn.status).toBe('disconnected');
     });
 
-    it('disconnects on 403 poll error', async () => {
+    it('disconnects on 403 poll error after retries', async () => {
       mockFetchResponse(':pull', { error: 'Forbidden' }, 403);
 
       const errors: string[] = [];
       conn.onError = (e) => errors.push(e);
 
       conn.connectPubSub(makePairing());
-      await jest.advanceTimersByTimeAsync(10);
+      // Need enough time for MAX_POLL_RETRIES (3) consecutive failures
+      await jest.advanceTimersByTimeAsync(10_000);
 
       expect(errors.some((e) => e.includes('authentication expired'))).toBe(true);
     });
@@ -772,6 +774,169 @@ describe('PubSubConnection', () => {
       await jest.advanceTimersByTimeAsync(10);
 
       // Connection should still be active
+      expect(conn.isConnected).toBe(true);
+    });
+  });
+
+  // ─── Phase 1: startPolling / stopPolling (public API) ──
+
+  describe('startPolling / stopPolling', () => {
+    it('exposes startPolling as a public method', () => {
+      expect(typeof conn.startPolling).toBe('function');
+    });
+
+    it('exposes stopPolling as a public method', () => {
+      expect(typeof conn.stopPolling).toBe('function');
+    });
+
+    it('stopPolling pauses polling without disconnecting', async () => {
+      conn.connectPubSub(makePairing());
+      await jest.advanceTimersByTimeAsync(10);
+      expect(conn.isConnected).toBe(true);
+
+      conn.stopPolling();
+      const callsAfterStop = fetchMock.mock.calls.length;
+      await jest.advanceTimersByTimeAsync(10_000);
+
+      const pullCallsAfterStop = fetchMock.mock.calls
+        .slice(callsAfterStop)
+        .filter((c: any[]) => c[0].includes(':pull'));
+      expect(pullCallsAfterStop.length).toBe(0);
+      // Still connected — just not polling
+      expect(conn.isConnected).toBe(true);
+    });
+
+    it('startPolling resumes polling after stopPolling', async () => {
+      conn.connectPubSub(makePairing());
+      await jest.advanceTimersByTimeAsync(10);
+
+      conn.stopPolling();
+      await jest.advanceTimersByTimeAsync(5_000);
+
+      conn.startPolling();
+      const callsAfterResume = fetchMock.mock.calls.length;
+      await jest.advanceTimersByTimeAsync(3_000);
+
+      const pullCalls = fetchMock.mock.calls
+        .slice(callsAfterResume)
+        .filter((c: any[]) => c[0].includes(':pull'));
+      expect(pullCalls.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ─── Phase 1: ack-after-process ───────────────────────
+
+  describe('ack-after-process', () => {
+    it('acknowledges messages AFTER processing, not before', async () => {
+      const processOrder: string[] = [];
+
+      conn.onMessage = () => { processOrder.push('onMessage'); };
+
+      fetchMock.mockImplementation(async (url: string, _opts?: any) => {
+        if (url.includes(':acknowledge')) {
+          processOrder.push('acknowledge');
+          return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as Response;
+        }
+        for (const [pattern, factory] of fetchResponses) {
+          if (url.includes(pattern)) return factory();
+        }
+        return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as Response;
+      });
+
+      const envelope = makeEnvelope({ messageType: 'rpc' });
+      mockFetchResponse(':pull', makePullResponse(envelope));
+
+      conn.connectPubSub(makePairing());
+      await jest.advanceTimersByTimeAsync(10);
+
+      const msgIdx = processOrder.indexOf('onMessage');
+      const ackIdx = processOrder.indexOf('acknowledge');
+      expect(msgIdx).toBeGreaterThanOrEqual(0);
+      expect(ackIdx).toBeGreaterThanOrEqual(0);
+      expect(msgIdx).toBeLessThan(ackIdx);
+    });
+
+    it('does not ack messages that fail processing', async () => {
+      conn.onMessage = () => { throw new Error('Processing failed'); };
+
+      const ackBodies: any[] = [];
+      fetchMock.mockImplementation(async (url: string, opts?: any) => {
+        if (url.includes(':acknowledge')) {
+          if (opts?.body) ackBodies.push(JSON.parse(opts.body));
+          return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as Response;
+        }
+        for (const [pattern, factory] of fetchResponses) {
+          if (url.includes(pattern)) return factory();
+        }
+        return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as Response;
+      });
+
+      const envelope = makeEnvelope({ messageType: 'rpc' });
+      mockFetchResponse(':pull', makePullResponse(envelope));
+
+      conn.connectPubSub(makePairing());
+      await jest.advanceTimersByTimeAsync(10);
+
+      // The failed message should NOT have been acknowledged
+      const ackWithIds = ackBodies.filter((b) => b.ackIds && b.ackIds.length > 0);
+      expect(ackWithIds.length).toBe(0);
+    });
+  });
+
+  // ─── Phase 1: poll retry with backoff ─────────────────
+
+  describe('poll retry with backoff', () => {
+    it('retries transient poll errors instead of disconnecting', async () => {
+      conn.connectPubSub(makePairing());
+      await jest.advanceTimersByTimeAsync(10);
+
+      let pollAttempts = 0;
+      fetchResponses.set(':pull', () => {
+        pollAttempts++;
+        if (pollAttempts <= 2) {
+          return { ok: false, status: 500, json: async () => ({}), text: async () => 'Server Error' } as Response;
+        }
+        return { ok: true, status: 200, json: async () => ({ receivedMessages: [] }), text: async () => '' } as Response;
+      });
+
+      await jest.advanceTimersByTimeAsync(20_000);
+      expect(conn.isConnected).toBe(true);
+    });
+
+    it('retries 401 errors before disconnecting (not immediate)', async () => {
+      conn.connectPubSub(makePairing());
+      await jest.advanceTimersByTimeAsync(10);
+
+      let pollCount = 0;
+      fetchResponses.set(':pull', () => {
+        pollCount++;
+        return {
+          ok: false, status: 401,
+          json: async () => ({}), text: async () => 'Unauthorized',
+        } as Response;
+      });
+
+      // After enough poll cycles, 401 should eventually disconnect
+      await jest.advanceTimersByTimeAsync(30_000);
+
+      expect(conn.status).toBe('disconnected');
+      expect(pollCount).toBeGreaterThan(1); // proves it retried, not instant disconnect
+    });
+
+    it('resets retry counter on successful poll', async () => {
+      conn.connectPubSub(makePairing());
+      await jest.advanceTimersByTimeAsync(10);
+
+      let callCount = 0;
+      fetchResponses.set(':pull', () => {
+        callCount++;
+        if (callCount === 1) {
+          return { ok: false, status: 500, json: async () => ({}), text: async () => 'flaky' } as Response;
+        }
+        return { ok: true, status: 200, json: async () => ({ receivedMessages: [] }), text: async () => '' } as Response;
+      });
+
+      await jest.advanceTimersByTimeAsync(10_000);
       expect(conn.isConnected).toBe(true);
     });
   });

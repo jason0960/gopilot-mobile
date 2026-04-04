@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand';
+import { AppState as RNAppState, AppStateStatus } from 'react-native';
 import { ConnectionManager, ConnectionStatus } from '../api/connection';
 import { PubSubConnection, PubSubPairingInfo } from '../api/pubsub';
 import { RpcClient } from '../api/rpc';
@@ -300,6 +301,28 @@ export const useAppStore = create<AppState>((set, get) => {
 
   // Start polling immediately — it's cheap (no-ops when queue is empty)
   startQueuePolling();
+
+  // ── AppState listener: pause/resume Pub/Sub polling on background/foreground ──
+  let lastAppState: AppStateStatus = RNAppState.currentState ?? 'active';
+
+  RNAppState.addEventListener('change', (nextState) => {
+    const wasBackground = lastAppState.match(/inactive|background/);
+    const isNowActive = nextState === 'active';
+    lastAppState = nextState;
+
+    const state = get();
+    if (state.transportType !== 'pubsub') return; // Only relevant for Pub/Sub
+
+    if (wasBackground && isNowActive) {
+      // Returning to foreground — resume polling to pull accumulated messages
+      pubsubConnection.startPolling();
+      startQueuePolling();
+    } else if (nextState.match(/inactive|background/)) {
+      // Going to background — pause polling to save battery
+      pubsubConnection.stopPolling();
+      stopQueuePolling();
+    }
+  });
 
   return {
     // Initial state

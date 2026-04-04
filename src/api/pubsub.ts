@@ -65,6 +65,7 @@ const MAX_MESSAGES_PER_PULL = 10;
 const HEARTBEAT_INTERVAL_MS = 25_000;
 const RECONNECT_DELAY_MS = 3_000;
 const MAX_RECONNECT_ATTEMPTS = 10;
+const MAX_POLL_RETRIES = 3;
 
 // ─── Helpers ────────────────────────────────────────────
 
@@ -148,6 +149,9 @@ export class PubSubConnection {
   /** Flag to prevent concurrent poll requests. */
   private polling = false;
 
+  /** Consecutive poll failure count for retry backoff. */
+  private pollFailures = 0;
+
   // ── Public callbacks (same shape as ConnectionManager) ──
 
   public onMessage: (data: string) => void = () => {};
@@ -178,6 +182,7 @@ export class PubSubConnection {
     this.clearTimers();
     this.seenIds.clear();
     this.reconnectAttempts = 0;
+    this.pollFailures = 0;
 
     this._pairing = pairing;
     this._config = {
@@ -293,11 +298,19 @@ export class PubSubConnection {
 
   // ── Polling ───────────────────────────────────────────
 
-  private startPolling(): void {
+  public startPolling(): void {
     if (this.pollTimer) return;
     // Execute first poll immediately
     this.poll();
     this.pollTimer = setInterval(() => this.poll(), POLL_INTERVAL_MS);
+  }
+
+  public stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.polling = false;
   }
 
   private async poll(): Promise<void> {
@@ -318,13 +331,26 @@ export class PubSubConnection {
       });
 
       if (!response.ok) {
+        this.pollFailures++;
+
         if (response.status === 401 || response.status === 403) {
-          this.onError('Pub/Sub authentication expired. Reconnect with new pairing code.');
-          this.disconnect();
+          if (this.pollFailures >= MAX_POLL_RETRIES) {
+            this.onError('Pub/Sub authentication expired. Reconnect with new pairing code.');
+            this.disconnect();
+            return;
+          }
+          // Retry — token may have just been refreshed
+          console.error(`[PubSub] Auth error (attempt ${this.pollFailures}/${MAX_POLL_RETRIES})`);
           return;
         }
-        throw new Error(`Pull failed (${response.status})`);
+
+        // Transient error — log and continue
+        console.error(`[PubSub] Pull failed (${response.status}), attempt ${this.pollFailures}/${MAX_POLL_RETRIES}`);
+        return;
       }
+
+      // Successful poll — reset failure counter
+      this.pollFailures = 0;
 
       const data = await response.json();
       const receivedMessages = data.receivedMessages || [];
@@ -333,34 +359,39 @@ export class PubSubConnection {
         return;
       }
 
-      // Acknowledge all messages
-      const ackIds = receivedMessages.map((m: any) => m.ackId);
-      this.acknowledge(ackIds).catch((err) => {
-        console.error('[PubSub] Ack failed:', err.message);
-      });
-
-      // Process messages
+      // Process messages FIRST, track which ones succeeded
+      const successAckIds: string[] = [];
       for (const received of receivedMessages) {
-        this.processMessage(received);
+        const succeeded = this.processMessage(received);
+        if (succeeded) {
+          successAckIds.push(received.ackId);
+        }
+      }
+
+      // Acknowledge only successfully processed messages
+      if (successAckIds.length > 0) {
+        this.acknowledge(successAckIds).catch((err) => {
+          console.error('[PubSub] Ack failed:', err.message);
+        });
       }
     } catch (err: any) {
       console.error('[PubSub] Poll error:', err.message);
-      // Don't disconnect on transient errors — just log and continue
+      this.pollFailures++;
     } finally {
       this.polling = false;
     }
   }
 
-  private processMessage(received: any): void {
+  private processMessage(received: any): boolean {
     try {
       const rawData = received.message?.data;
-      if (!rawData) return;
+      if (!rawData) return true; // No data — ack to prevent redelivery
 
       const decoded = atob(rawData);
       const envelope: PubSubEnvelope = fromAvroJson(JSON.parse(decoded));
 
       // Deduplication
-      if (this.seenIds.has(envelope.id)) return;
+      if (this.seenIds.has(envelope.id)) return true; // Already processed — ack
       this.seenIds.add(envelope.id);
 
       // Cap dedup set
@@ -374,10 +405,10 @@ export class PubSubConnection {
       }
 
       // Filter: only process ext_to_mobile messages
-      if (envelope.direction !== 'ext_to_mobile') return;
+      if (envelope.direction !== 'ext_to_mobile') return true; // Not for us — ack
 
       // Filter: only process messages for our userId
-      if (envelope.userId !== this._pairing?.userId) return;
+      if (envelope.userId !== this._pairing?.userId) return true; // Not for us — ack
 
       // Route by messageType
       switch (envelope.messageType) {
@@ -419,8 +450,10 @@ export class PubSubConnection {
           this.onMessage(envelope.payload);
           break;
       }
+      return true;
     } catch (err: any) {
       console.error('[PubSub] Message processing error:', err.message);
+      return false; // Don't ack — will be redelivered
     }
   }
 

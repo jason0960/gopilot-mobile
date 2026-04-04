@@ -1,6 +1,8 @@
-# GoPilot Mobile
+# AgentDeck Mobile
 
-React Native (Expo) mobile app for [GoPilot](https://github.com/jason0960/vscode_ide_mobile_plug) — control GitHub Copilot Chat from your phone via **Google Cloud Pub/Sub** or WebSocket relay.
+React Native (Expo) mobile app for [AgentDeck](https://github.com/jason0960/vscode_ide_mobile_plug) — control GitHub Copilot Chat from your phone via **Google Cloud Pub/Sub** or WebSocket relay.
+
+**Available on TestFlight** — iOS native app (version 0.2.1).
 
 ## Features
 
@@ -12,6 +14,8 @@ React Native (Expo) mobile app for [GoPilot](https://github.com/jason0960/vscode
 - **Terminal** — Send commands to VS Code terminal
 - **Quick Commands** — One-tap actions (build, test, lint, etc.)
 - **Leave Room** — Disconnect and return to the connect screen
+- **End-to-end encryption** — X25519 ECDH key exchange + XSalsa20-Poly1305 via tweetnacl
+- **Error boundary** — Global crash recovery with retry UI
 - **Dual Transport** — Connects via GCP Pub/Sub (preferred) or WebSocket relay (fallback)
 
 ## How it works
@@ -50,7 +54,13 @@ If `GET /pair/:code` returns 404, the app falls back to WebSocket relay mode:
 1. Connects to `/relay/join?code=XXXX` → joins the room
 2. All messages forwarded bidirectionally through the relay in real-time
 
-## Quick start
+## Install
+
+### TestFlight (iOS)
+
+The production iOS app is available on TestFlight. Contact the repo owner for a TestFlight invite.
+
+### Development
 
 ```bash
 npm install
@@ -78,10 +88,11 @@ src/
 ├── api/
 │   ├── connection.ts       — WebSocket manager (direct + relay modes)
 │   ├── pubsub.ts           — GCP Pub/Sub transport (publish, pull, Avro encoding)
-│   ├── e2e-crypto.ts       — End-to-end encryption utilities
-│   └── rpc.ts              — JSON-RPC client
+│   ├── e2e-crypto.ts       — X25519 + XSalsa20-Poly1305 end-to-end encryption
+│   └── rpc.ts              — JSON-RPC client with E2E encryption layer
 ├── components/
 │   ├── CommandCenterDrawer.tsx — Drawer with Leave Room button
+│   ├── ErrorBoundary.tsx   — Global crash recovery with retry UI
 │   ├── InlineDiffPanel.tsx — Inline diff viewer
 │   └── SyntaxHighlighter.tsx
 ├── screens/
