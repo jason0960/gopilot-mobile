@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "AgentDeck Command Center",
-    "slug": "gopilot",
+    "description": "Control GitHub Copilot Chat from your phone — agent mode, file browser, git changes, terminal, and more.",
+    "slug": "agentdeck",
     "version": "0.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,7 +34,7 @@
       ],
       "softwareKeyboardLayoutMode": "pan"
     },
-    "scheme": "mobile-copilot",
+    "scheme": "agentdeck",
     "owner": "jason096",
     "extra": {
       "eas": {

@@ -1,8 +1,8 @@
 # AgentDeck Mobile
 
-React Native (Expo) mobile app for [AgentDeck](https://github.com/jason0960/vscode_ide_mobile_plug) — control GitHub Copilot Chat from your phone via **Google Cloud Pub/Sub** or WebSocket relay.
+React Native (Expo) mobile app for [AgentDeck](https://github.com/jason0960/vscode_ide_mobile_plug) — control GitHub Copilot Chat from your phone.
 
-**Available on TestFlight** — iOS native app (version 0.2.1).
+**Available on TestFlight** — iOS native app (version 0.3.0).
 
 ## Features
 
@@ -16,43 +16,21 @@ React Native (Expo) mobile app for [AgentDeck](https://github.com/jason0960/vsco
 - **Leave Room** — Disconnect and return to the connect screen
 - **End-to-end encryption** — X25519 ECDH key exchange + XSalsa20-Poly1305 via tweetnacl
 - **Error boundary** — Global crash recovery with retry UI
-- **Dual Transport** — Connects via GCP Pub/Sub (preferred) or WebSocket relay (fallback)
 
 ## How it works
 
-The app supports two transport modes. Both use the same 6-character room/pairing code UX.
-
-### Pub/Sub Mode (preferred)
+The app connects to the AgentDeck VS Code extension using a 6-character pairing code. Transport is selected automatically — no configuration needed.
 
 ```
-┌──────────────┐  GET /pair/:code  ┌───────────────┐  POST /pair  ┌──────────────┐
-│  Mobile App  │ ────────────────► │ Relay Server  │ ◄─────────── │  VS Code Ext │
-│  (this app)  │                  │ (pairing only)│              │  (GoPilot)   │
-└──────┬───────┘                  └───────────────┘              └──────┬───────┘
-       │                                                             │
-       │               ┌─────────────────┐                             │
-       └──────────────►│  GCP Pub/Sub   │◄────────────────────────────┘
-                        └─────────────────┘
+┌──────────────┐                  ┌───────────────┐                  ┌──────────────┐
+│  Mobile App  │ ◄──────────────► │  Cloud Relay  │ ◄──────────────► │  VS Code Ext │
+│  (this app)  │   6-char code    │               │   auto-paired    │  (AgentDeck) │
+└──────────────┘                  └───────────────┘                  └──────────────┘
 ```
 
-1. Enter the 6-char pairing code on the Relay tab
-2. App tries `GET /pair/:code` first — if found, it’s a Pub/Sub pairing
-3. App receives GCP Pub/Sub credentials (project, topic, subscriptions, access token)
-4. App connects directly to Pub/Sub — relay is no longer involved
-5. Extension pushes `token_refresh` messages every 45 min to keep credentials fresh
-
-### WebSocket Relay Mode (fallback)
-
-```
-┌──────────────┐     WebSocket     ┌─────────────────┐     WebSocket     ┌──────────────┐
-│  Mobile App  │ ──────────────→  │  Relay Server   │ ──────────────→  │  VS Code Ext │
-│  (this app)  │ ◄──────────────  │  (gopilot.dev)  │ ◄──────────────  │  (GoPilot)   │
-└──────────────┘                   └─────────────────┘                   └──────────────┘
-```
-
-If `GET /pair/:code` returns 404, the app falls back to WebSocket relay mode:
-1. Connects to `/relay/join?code=XXXX` → joins the room
-2. All messages forwarded bidirectionally through the relay in real-time
+1. Open VS Code with AgentDeck installed — a 6-character room code appears automatically
+2. Enter the code in the mobile app (or scan the QR code)
+3. Messages flow bidirectionally with end-to-end encryption
 
 ## Install
 
@@ -74,9 +52,6 @@ npx expo start --web    # Browser preview
 # iOS
 eas build --profile preview --platform ios
 
-# Android
-eas build --profile preview --platform android
-
 # Production
 eas build --profile production --platform all
 ```
@@ -87,7 +62,7 @@ eas build --profile production --platform all
 src/
 ├── api/
 │   ├── connection.ts       — WebSocket manager (direct + relay modes)
-│   ├── pubsub.ts           — GCP Pub/Sub transport (publish, pull, Avro encoding)
+│   ├── pubsub.ts           — Cloud transport (publish, pull, Avro encoding)
 │   ├── e2e-crypto.ts       — X25519 + XSalsa20-Poly1305 end-to-end encryption
 │   └── rpc.ts              — JSON-RPC client with E2E encryption layer
 ├── components/
@@ -97,7 +72,7 @@ src/
 │   └── SyntaxHighlighter.tsx
 ├── screens/
 │   ├── ChatScreen.tsx      — Streaming Copilot chat
-│   ├── ConnectScreen.tsx   — Unified code entry (Pub/Sub or relay auto-detect)
+│   ├── ConnectScreen.tsx   — Unified code entry (auto-detect transport)
 │   ├── ChangesScreen.tsx   — Git diff viewer
 │   ├── FilesScreen.tsx     — Workspace file browser
 │   └── ...
@@ -111,12 +86,12 @@ src/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EXPO_PUBLIC_RELAY_URL` | `wss://gopilot-relay.onrender.com` | Relay server URL (for WebSocket relay + pairing exchange) |
+| `EXPO_PUBLIC_RELAY_URL` | `wss://gopilot-relay.onrender.com` | Relay server URL |
 
 ## Testing
 
 ```bash
-npm test             # 135 tests
+npm test             # 160 tests
 ```
 
 ## License
