@@ -24,7 +24,7 @@ import { useAppStore } from '../store/AppStore';
 import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
 import type { PubSubPairingInfo } from '../api/pubsub';
 
-type ConnectMode = 'scan' | 'relay' | 'pubsub' | 'direct';
+type ConnectMode = 'scan' | 'code';
 
 export default function ConnectScreen() {
   const {
@@ -39,11 +39,8 @@ export default function ConnectScreen() {
 
   const colors = Colors[theme];
 
-  const [mode, setMode] = useState<ConnectMode>('relay');
-  const [directUrl, setDirectUrl] = useState('');
-  const [token, setToken] = useState('');
+  const [mode, setMode] = useState<ConnectMode>('code');
   const [roomCode, setRoomCode] = useState('');
-  const [pubsubJson, setPubsubJson] = useState('');
   const [scanned, setScanned] = useState(false);
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -86,7 +83,7 @@ export default function ConnectScreen() {
       const cleaned = data.trim().toUpperCase();
       if (/^[A-Z0-9]{4,8}$/.test(cleaned)) {
         setRoomCode(cleaned);
-        setMode('relay');
+        setMode('code');
         setScanned(false);
         return;
       }
@@ -125,11 +122,6 @@ export default function ConnectScreen() {
     connectRelayWithCode(code);
   };
 
-  const handleDirectConnect = () => {
-    if (!directUrl.trim() || !token.trim()) return;
-    connectDirect(directUrl.trim(), token.trim());
-  };
-
   /** Type guard for PubSubPairingInfo payloads. */
   function isPubSubPairing(obj: any): obj is PubSubPairingInfo {
     return (
@@ -142,28 +134,6 @@ export default function ConnectScreen() {
       typeof obj.accessToken === 'string'
     );
   }
-
-  /** Parse and validate a JSON string as Pub/Sub pairing info. */
-  function parsePubSubJson(text: string): PubSubPairingInfo | null {
-    try {
-      const obj = JSON.parse(text);
-      return isPubSubPairing(obj) ? obj : null;
-    } catch {
-      return null;
-    }
-  }
-
-  const handlePubSubConnect = () => {
-    const pairing = parsePubSubJson(pubsubJson);
-    if (!pairing) {
-      Alert.alert(
-        'Invalid Pairing',
-        'Paste the JSON pairing info from VS Code (Mobile Copilot → Copy Pairing JSON).',
-      );
-      return;
-    }
-    connectPubSub(pairing);
-  };
 
   // ─── Camera Permission ────────────────────────────────
 
@@ -179,7 +149,7 @@ export default function ConnectScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Mobile Copilot</Text>
+        <Text style={[styles.title, { color: colors.text }]}>AgentDeck</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {isConnecting ? 'Connecting...' : 'Connect to VS Code'}
         </Text>
@@ -188,10 +158,8 @@ export default function ConnectScreen() {
       {/* Mode Tabs */}
       <View style={[styles.tabBar, { backgroundColor: colors.surface }]}>
         {([
-          { key: 'scan' as const, icon: 'scan-outline' as const, label: 'Scan' },
-          { key: 'relay' as const, icon: 'globe-outline' as const, label: 'Relay' },
-          { key: 'pubsub' as const, icon: 'cloud-outline' as const, label: 'Pub/Sub' },
-          { key: 'direct' as const, icon: 'radio-outline' as const, label: 'Direct' },
+          { key: 'scan' as const, icon: 'scan-outline' as const, label: 'Scan QR' },
+          { key: 'code' as const, icon: 'keypad-outline' as const, label: 'Room Code' },
         ]).map((m) => (
           <TouchableOpacity
             key={m.key}
@@ -273,9 +241,9 @@ export default function ConnectScreen() {
                 >
                   <Text style={styles.permBtnText}>Allow Camera</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setMode('relay')}>
+                <TouchableOpacity onPress={() => setMode('code')}>
                   <Text style={[styles.skipLink, { color: colors.textSecondary }]}>
-                    Or connect with a room code
+                    Or enter a room code
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -283,13 +251,13 @@ export default function ConnectScreen() {
           </View>
         )}
 
-        {/* ── Relay Tab ───────────────────────────────── */}
-        {mode === 'relay' && (
+        {/* ── Room Code Tab ────────────────────────────── */}
+        {mode === 'code' && (
           <ScrollView contentContainerStyle={styles.formScrollCentered} keyboardShouldPersistTaps="handled" bounces={false}>
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Enter Room Code</Text>
               <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-                Open VS Code with Mobile Copilot — the 6-character room code appears automatically. Works with both Relay and Pub/Sub.
+                Open VS Code with AgentDeck — the 6-character room code appears automatically. Works with both Relay and Pub/Sub.
               </Text>
 
               <TextInput
@@ -324,129 +292,6 @@ export default function ConnectScreen() {
                   disabled={!roomCode.trim()}
                 >
                   <Text style={styles.connectBtnText}>Join Room</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </ScrollView>
-        )}
-
-        {/* ── Pub/Sub Tab ─────────────────────────────── */}
-        {mode === 'pubsub' && (
-          <ScrollView contentContainerStyle={styles.formScrollCentered} keyboardShouldPersistTaps="handled" bounces={false}>
-            <View style={[styles.card, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Google Cloud Pub/Sub</Text>
-              <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-                In VS Code open "Mobile Copilot: Relay Options" → Copy Pairing JSON, then paste below. Or use Scan tab to scan the pairing QR.
-              </Text>
-
-              <TextInput
-                style={[styles.input, styles.pubsubInput, {
-                  backgroundColor: colors.background,
-                  color: colors.text,
-                  borderColor: colors.border,
-                }]}
-                placeholder='{"projectId":"...","topicName":"..."}'
-                placeholderTextColor={colors.textMuted}
-                value={pubsubJson}
-                onChangeText={setPubsubJson}
-                autoCapitalize="none"
-                autoCorrect={false}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                editable={!isConnecting}
-              />
-
-              {/* Quick validation indicator */}
-              {pubsubJson.trim().length > 0 && (
-                <View style={styles.validationRow}>
-                  <Ionicons
-                    name={parsePubSubJson(pubsubJson) ? 'checkmark-circle' : 'alert-circle'}
-                    size={16}
-                    color={parsePubSubJson(pubsubJson) ? colors.success : colors.error}
-                  />
-                  <Text style={[styles.validationText, {
-                    color: parsePubSubJson(pubsubJson) ? colors.success : colors.error,
-                  }]}>
-                    {parsePubSubJson(pubsubJson) ? 'Valid pairing info' : 'Invalid JSON — check format'}
-                  </Text>
-                </View>
-              )}
-
-              {isConnecting ? (
-                <TouchableOpacity
-                  style={[styles.connectBtn, { backgroundColor: colors.error || '#e74c3c' }]}
-                  onPress={disconnect}
-                >
-                  <Text style={styles.connectBtnText}>Cancel</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.connectBtn, { backgroundColor: colors.primary }]}
-                  onPress={handlePubSubConnect}
-                  disabled={!pubsubJson.trim()}
-                >
-                  <Text style={styles.connectBtnText}>Connect via Pub/Sub</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </ScrollView>
-        )}
-
-        {/* ── Direct Tab ──────────────────────────────── */}
-        {mode === 'direct' && (
-          <ScrollView contentContainerStyle={styles.formScrollCentered} keyboardShouldPersistTaps="handled" bounces={false}>
-            <View style={[styles.card, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Direct Connection</Text>
-              <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-                Enter server URL and token manually, or use the Scan tab for QR code
-              </Text>
-
-              <TextInput
-                style={[styles.input, {
-                  backgroundColor: colors.background,
-                  color: colors.text,
-                  borderColor: colors.border,
-                }]}
-                placeholder="Server URL (http://192.168.1.x:3000)"
-                placeholderTextColor={colors.textMuted}
-                value={directUrl}
-                onChangeText={setDirectUrl}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                editable={!isConnecting}
-              />
-
-              <TextInput
-                style={[styles.input, {
-                  backgroundColor: colors.background,
-                  color: colors.text,
-                  borderColor: colors.border,
-                }]}
-                placeholder="Auth token"
-                placeholderTextColor={colors.textMuted}
-                value={token}
-                onChangeText={setToken}
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isConnecting}
-              />
-
-              {isConnecting ? (
-                <TouchableOpacity
-                  style={[styles.connectBtn, { backgroundColor: colors.error || '#e74c3c' }]}
-                  onPress={disconnect}
-                >
-                  <Text style={styles.connectBtnText}>Cancel</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.connectBtn, { backgroundColor: colors.primary }]}
-                  onPress={handleDirectConnect}
-                  disabled={!directUrl.trim() || !token.trim()}
-                >
-                  <Text style={styles.connectBtnText}>Connect</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -561,7 +406,6 @@ const styles = StyleSheet.create({
   skipLink: { fontSize: FontSize.sm },
 
   // Forms
-  formScroll: { padding: Spacing.lg },
   formScrollCentered: { flexGrow: 1, justifyContent: 'center', padding: Spacing.lg },
   card: {
     borderRadius: BorderRadius.lg,
@@ -582,27 +426,12 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     paddingVertical: Spacing.lg,
   },
-  pubsubInput: {
-    minHeight: 80,
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-    fontSize: FontSize.sm,
-  },
-  validationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: Spacing.sm,
-  },
-  validationText: {
-    fontSize: FontSize.sm,
-  },
   connectBtn: {
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.md,
     alignItems: 'center',
     marginTop: Spacing.sm,
   },
-  btnDisabled: { opacity: 0.5 },
   connectBtnText: { color: '#fff', fontSize: FontSize.md, fontWeight: '600' },
 
   // Error
