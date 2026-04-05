@@ -257,7 +257,7 @@ export default function ConnectScreen() {
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Enter Room Code</Text>
               <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
-                Open VS Code with AgentDeck — the 6-character room code appears automatically. Works with both Relay and Pub/Sub.
+                Open VS Code with AgentDeck — the 6-character room code appears automatically.
               </Text>
 
               <TextInput
