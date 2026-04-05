@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store/AppStore';
-import { Colors, Spacing, FontSize, BorderRadius, ThemeMode } from '../theme';
+import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
 
 const MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo', 'claude-3.5-sonnet', 'claude-3-opus'];
 

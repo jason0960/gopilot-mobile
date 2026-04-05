@@ -14,7 +14,6 @@ import {
   Alert,
 } from 'react-native';
 import {
-  DrawerContentScrollView,
   DrawerContentComponentProps,
 } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';

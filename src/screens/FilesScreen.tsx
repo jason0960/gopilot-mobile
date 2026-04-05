@@ -224,9 +224,4 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { fontSize: FontSize.md },
   codeScroll: { flex: 1, padding: Spacing.md },
-  code: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: FontSize.code,
-    lineHeight: 20,
-  },
 });

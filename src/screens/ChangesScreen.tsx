@@ -19,7 +19,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore, GitChange } from '../store/AppStore';
 import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
-import { parseDiffIntoHunks, DiffHunk, ParsedDiff } from '../utils/diffParser';
+import { parseDiffIntoHunks, ParsedDiff } from '../utils/diffParser';
 
 interface ChangesData {
   files: GitChange[];

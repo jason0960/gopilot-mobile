@@ -19,7 +19,6 @@ export const Colors: { dark: ThemeColors; light: ThemeColors } = {
     warning: '#d29922',
     error: '#f85149',
     info: '#58a6ff',
-    accent: '#bc8cff',
     // Chat
     userBubble: '#1a2332',
     assistantBubble: '#161b22',
@@ -36,10 +35,6 @@ export const Colors: { dark: ThemeColors; light: ThemeColors } = {
     online: '#3fb950',
     offline: '#f85149',
     connecting: '#d29922',
-    // Navigation
-    tabBar: '#0d1117',
-    tabInactive: '#6e7681',
-    tabActive: '#58a6ff',
   },
   light: {
     background: '#ffffff',
@@ -55,7 +50,6 @@ export const Colors: { dark: ThemeColors; light: ThemeColors } = {
     warning: '#9a6700',
     error: '#cf222e',
     info: '#0969da',
-    accent: '#8250df',
     userBubble: '#dbeafe',
     assistantBubble: '#f6f8fa',
     diffAdded: '#1a7f3733',
@@ -68,9 +62,6 @@ export const Colors: { dark: ThemeColors; light: ThemeColors } = {
     online: '#1a7f37',
     offline: '#cf222e',
     connecting: '#9a6700',
-    tabBar: '#ffffff',
-    tabInactive: '#8c959f',
-    tabActive: '#2563eb',
   },
 } as const;
 
@@ -90,7 +81,6 @@ export interface ThemeColors {
   warning: string;
   error: string;
   info: string;
-  accent: string;
   userBubble: string;
   assistantBubble: string;
   diffAdded: string;
@@ -103,9 +93,6 @@ export interface ThemeColors {
   online: string;
   offline: string;
   connecting: string;
-  tabBar: string;
-  tabInactive: string;
-  tabActive: string;
 }
 
 export const Spacing = {
