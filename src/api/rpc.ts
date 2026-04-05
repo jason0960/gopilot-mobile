@@ -8,12 +8,12 @@
 import { ConnectionManager } from './connection';
 import { E2ECrypto } from './e2e-crypto';
 
-export interface RpcMessage {
+export interface RpcMessage<TParams = unknown, TResult = unknown> {
   id: string;
   type: 'request' | 'response' | 'stream' | 'event' | 'error';
   method?: string;
-  params?: any;
-  result?: any;
+  params?: TParams;
+  result?: TResult;
   error?: { code: number; message: string };
 }
 

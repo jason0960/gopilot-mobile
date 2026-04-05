@@ -177,6 +177,10 @@ const pubsubConnection = new PubSubConnection();
 const rpcClient = new RpcClient(connectionManager);
 const notificationService = new NotificationService();
 
+// Debounce timer for saveChatHistory — prevents excessive AsyncStorage writes
+let _saveChatTimer: ReturnType<typeof setTimeout> | null = null;
+const SAVE_CHAT_DEBOUNCE_MS = 1000;
+
 // Store original ConnectionManager methods for relay mode restoration
 const _originalSend = connectionManager.send.bind(connectionManager);
 const _originalMarkAuth = connectionManager.markAuthenticated.bind(connectionManager);
@@ -734,16 +738,20 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     saveChatHistory: async () => {
-      try {
-        const { messages, relayCode } = get();
-        const key = relayCode
-          ? `mc-chat-history:${relayCode}`
-          : 'mc-chat-history:direct';
-        const msgs = messages.slice(-200);
-        await AsyncStorage.setItem(key, JSON.stringify(msgs));
-      } catch (e) {
-        if (__DEV__) console.warn('[AppStore] saveChatHistory failed:', e);
-      }
+      // Debounce: coalesce rapid save calls during streaming / multi-message flows
+      if (_saveChatTimer) clearTimeout(_saveChatTimer);
+      _saveChatTimer = setTimeout(async () => {
+        try {
+          const { messages, relayCode } = get();
+          const key = relayCode
+            ? `mc-chat-history:${relayCode}`
+            : 'mc-chat-history:direct';
+          const msgs = messages.slice(-200);
+          await AsyncStorage.setItem(key, JSON.stringify(msgs));
+        } catch (e) {
+          if (__DEV__) console.warn('[AppStore] saveChatHistory failed:', e);
+        }
+      }, SAVE_CHAT_DEBOUNCE_MS);
     },
 
     loadChatHistory: async () => {
