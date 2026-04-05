@@ -138,7 +138,6 @@ interface AppState {
   setTheme: (theme: ThemeMode) => void;
   setRelayServerUrl: (url: string) => void;
 
-  incrementUnread: () => void;
   clearUnread: () => void;
   setActiveScreen: (screen: string) => void;
 
@@ -432,10 +431,6 @@ export const useAppStore = create<AppState>((set, get) => {
     setRelayServerUrl: (url) => {
       set({ relayServerUrl: url });
       AsyncStorage.setItem('mc-relay-server', url).catch(() => {});
-    },
-
-    incrementUnread: () => {
-      set((s) => ({ unreadCount: s.unreadCount + 1 }));
     },
 
     clearUnread: () => {

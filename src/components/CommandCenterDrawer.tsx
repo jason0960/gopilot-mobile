@@ -139,7 +139,7 @@ export default function CommandCenterDrawer(props: DrawerContentComponentProps) 
           </View>
           <View style={styles.brandText}>
             <Text style={[styles.brandName, { color: colors.text }]}>
-              Mobile Copilot
+              AgentDeck
             </Text>
             <Text style={[styles.brandSub, { color: colors.textMuted }]}>
               AI Command Center

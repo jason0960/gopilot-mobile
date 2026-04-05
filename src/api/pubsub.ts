@@ -1,5 +1,5 @@
 /**
- * Pub/Sub connection manager for Mobile Copilot.
+ * Pub/Sub connection manager for AgentDeck.
  *
  * Drop-in alternative to `ConnectionManager` that communicates with the
  * VS Code extension via Google Cloud Pub/Sub REST API instead of WebSockets.

@@ -1,6 +1,6 @@
 /**
- * Connect Screen — QR code scanner, relay room code, and direct URL input.
- * Primary pairing UX for Mobile Copilot.
+ * Connect Screen — QR code scanner and room code entry.
+ * Primary pairing UX for AgentDeck.
  */
 
 import React, { useState, useEffect } from 'react';

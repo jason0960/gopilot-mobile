@@ -1,5 +1,5 @@
 /**
- * JSON-RPC client for Mobile Copilot.
+ * JSON-RPC client for AgentDeck.
  * Matches the protocol in @mobile-copilot/protocol.
  *
  * Includes E2E encryption: X25519 key exchange + XSalsa20-Poly1305 AEAD.

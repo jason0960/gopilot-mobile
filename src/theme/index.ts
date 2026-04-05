@@ -1,5 +1,5 @@
 /**
- * Theme constants for Mobile Copilot.
+ * Theme constants for AgentDeck.
  * Developer-focused dark/light themes inspired by VS Code.
  * OLED dark mode with Inter-style typography scale.
  */

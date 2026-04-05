@@ -1,5 +1,5 @@
 /**
- * WebSocket connection manager for Mobile Copilot.
+ * WebSocket connection manager for AgentDeck.
  * Supports both direct (LAN/tunnel) and cloud relay connections.
  */
 

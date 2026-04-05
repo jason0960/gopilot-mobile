@@ -1,5 +1,5 @@
 /**
- * Mobile Copilot — React Native App Entry Point.
+ * AgentDeck — React Native App Entry Point.
  * AI Command Center with drawer navigation.
  * Future-proofed for multi-IDE support beyond VS Code.
  */

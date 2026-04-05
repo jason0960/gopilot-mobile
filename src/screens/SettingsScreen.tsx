@@ -233,7 +233,7 @@ export default function SettingsScreen() {
 
       {/* Version */}
       <Text style={[styles.version, { color: colors.textMuted }]}>
-        Mobile Copilot v0.2.0
+        AgentDeck v0.3.0
       </Text>
     </ScrollView>
   );
