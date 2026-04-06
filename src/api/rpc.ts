@@ -139,7 +139,7 @@ export class RpcClient {
         p.streamBuffer = (p.streamBuffer || '') + chunk;
         p.onChunk?.(chunk);
       }
-      this.onStreamChunk(msg.id, msg.result);
+      this.onStreamChunk(msg.id, msg.result as string);
       return;
     }
 

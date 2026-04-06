@@ -1,35 +1,29 @@
 /**
- * Local notification service for AgentDeck.
+ * Local notification service for AgentDeck — NO-OP STUB.
  *
- * Manages:
- * - Local notification scheduling (message previews, unread summaries)
- * - Badge count management
- * - Notification tap → screen navigation callback
- * - Permission requests
+ * The `expo-notifications` native module was temporarily removed because
+ * the EAS-cached provisioning profile doesn't include the Push Notifications
+ * capability. This stub preserves the full API surface so all consumers
+ * (AppStore, chatSlice) continue to compile and run without changes.
  *
- * Uses `expo-notifications` for all platform-specific notification APIs.
- * This module handles LOCAL notifications only — push notifications are Phase 3.
+ * To restore real notifications:
+ *   1. `npx expo install expo-notifications`
+ *   2. Run `eas credentials -p ios` interactively to regenerate the
+ *      provisioning profile with Push Notifications enabled
+ *   3. Replace this stub with the real implementation
  *
  * @module gopilot-mobile/api/notifications
  */
-
-import * as Notifications from 'expo-notifications';
 
 // ─── Types ──────────────────────────────────────────────
 
 /** Callback when user taps a notification — receives the target screen name. */
 export type NotificationNavCallback = (screen: string) => void;
 
-// ─── Constants ──────────────────────────────────────────
-
-const MAX_BODY_LENGTH = 100;
-const NOTIFICATION_TITLE = 'AgentDeck';
-
-// ─── NotificationService ────────────────────────────────
+// ─── NotificationService (no-op stub) ───────────────────
 
 export class NotificationService {
   private initialized = false;
-  private tapSubscription: { remove: () => void } | null = null;
 
   /**
    * Set this callback to handle notification tap → screen navigation.
@@ -38,106 +32,35 @@ export class NotificationService {
   public onNavigate: NotificationNavCallback | null = null;
 
   /**
-   * Request permissions and set up notification handlers.
-   * Returns `true` if permission was granted.
+   * No-op — always returns false (no native module available).
    */
   async initialize(): Promise<boolean> {
-    // Set up handler for foreground notifications
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: false,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
-
-    // Request permission
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') {
-      return false;
-    }
-
-    // Listen for notification taps
-    this.tapSubscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const screen = response.notification?.request?.content?.data?.screen;
-        if (screen && this.onNavigate) {
-          this.onNavigate(screen as string);
-        }
-      },
-    );
-
     this.initialized = true;
-    return true;
+    return false;
   }
 
-  /**
-   * Show a local notification with a message preview.
-   * @param message — the assistant message text (truncated to 100 chars)
-   * @param unreadCount — current unread count (shown as badge)
-   */
-  async showMessageNotification(message: string, unreadCount: number): Promise<void> {
-    if (!this.initialized) return;
-
-    const body =
-      message.length > MAX_BODY_LENGTH
-        ? message.slice(0, MAX_BODY_LENGTH) + '...'
-        : message;
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: NOTIFICATION_TITLE,
-        body,
-        data: { screen: 'Chat' },
-        badge: unreadCount,
-      },
-      trigger: null, // immediate
-    });
+  /** No-op stub. */
+  async showMessageNotification(_message: string, _unreadCount: number): Promise<void> {
+    // Stub — expo-notifications removed temporarily
   }
 
-  /**
-   * Show a summary notification for multiple unread messages.
-   * @param count — number of unread messages
-   */
-  async showUnreadSummary(count: number): Promise<void> {
-    if (!this.initialized) return;
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: NOTIFICATION_TITLE,
-        body: `${count} unread messages`,
-        data: { screen: 'Chat' },
-        badge: count,
-      },
-      trigger: null,
-    });
+  /** No-op stub. */
+  async showUnreadSummary(_count: number): Promise<void> {
+    // Stub — expo-notifications removed temporarily
   }
 
-  /**
-   * Set the app badge count.
-   */
-  async setBadge(count: number): Promise<void> {
-    if (!this.initialized) return;
-    await Notifications.setBadgeCountAsync(count);
+  /** No-op stub. */
+  async setBadge(_count: number): Promise<void> {
+    // Stub — expo-notifications removed temporarily
   }
 
-  /**
-   * Clear the app badge and dismiss all notifications.
-   */
+  /** No-op stub. */
   async clearBadge(): Promise<void> {
-    if (!this.initialized) return;
-    await Notifications.setBadgeCountAsync(0);
-    await Notifications.dismissAllNotificationsAsync();
+    // Stub — expo-notifications removed temporarily
   }
 
-  /**
-   * Clean up listeners.
-   */
+  /** No-op stub. */
   dispose(): void {
-    this.tapSubscription?.remove();
-    this.tapSubscription = null;
     this.initialized = false;
   }
 }
